@@ -12,6 +12,7 @@ use crate::error::{LsqError, lsq_error};
 use crate::models::*;
 use crate::tools::instructions;
 use crate::tools::leads;
+use crate::tools::opportunities;
 
 #[derive(Clone)]
 pub struct LsqMcpServer {
@@ -219,6 +220,61 @@ impl LsqMcpServer {
         if let Err(e) = self.ensure_client().await { return Ok(e); }
         let guard = self.get_client().await;
         let result = leads::get_lead_activities(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get all opportunity types available on this LSQ account. Call this before get_opportunity_metadata to get valid type IDs.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_opportunity_types(&self) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = opportunities::get_opportunity_types(guard.as_ref().unwrap()).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get the field schema for a specific opportunity type. Use the opportunity_type_id from get_opportunity_types.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_opportunity_metadata(&self, Parameters(params): Parameters<OpportunityMetadataParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = opportunities::get_opportunity_metadata(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get a single opportunity by its ID.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_opportunity_by_id(&self, Parameters(params): Parameters<OpportunityIdParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = opportunities::get_opportunity_by_id(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get all opportunities associated with a lead. Returns all opportunity types for that lead.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_opportunities_by_lead(&self, Parameters(params): Parameters<LeadIdParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = opportunities::get_opportunities_by_lead(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Search opportunities with filter conditions. Returns paginated results with has_more. Use get_opportunity_metadata to discover valid filter field names.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn search_opportunities(&self, Parameters(params): Parameters<SearchOpportunitiesParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = opportunities::search_opportunities(guard.as_ref().unwrap(), &params).await;
         check_auth(self, result).await
     }
 }
