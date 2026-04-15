@@ -15,6 +15,7 @@ use crate::tools::instructions;
 use crate::tools::leads;
 use crate::tools::opportunities;
 use crate::tools::sales;
+use crate::tools::tasks;
 
 #[derive(Clone)]
 pub struct LsqMcpServer {
@@ -332,6 +333,61 @@ impl LsqMcpServer {
         if let Err(e) = self.ensure_client().await { return Ok(e); }
         let guard = self.get_client().await;
         let result = sales::get_sales_activities_by_lead(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get all task type definitions for this LSQ account. Cached after first call.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_task_types(&self) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = tasks::get_task_types(guard.as_ref().unwrap()).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get paginated tasks for a lead. Returns all task types; filter by type name if needed.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_tasks_by_lead(&self, Parameters(params): Parameters<TasksByLeadParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = tasks::get_tasks_by_lead(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get tasks assigned to a specific user (by user ID). Returns paginated results.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_tasks_by_owner(&self, Parameters(params): Parameters<TasksByOwnerParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = tasks::get_tasks_by_owner(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get appointment tasks for a user (by user_id or email). Returns scheduled meetings and calls.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_appointments(&self, Parameters(params): Parameters<AppointmentParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = tasks::get_appointments(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get to-do tasks for a user (by user_id or email). Returns follow-up items and reminders.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_todos(&self, Parameters(params): Parameters<AppointmentParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = tasks::get_todos(guard.as_ref().unwrap(), &params).await;
         check_auth(self, result).await
     }
 }
