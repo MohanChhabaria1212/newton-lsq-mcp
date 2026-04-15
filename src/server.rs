@@ -13,6 +13,7 @@ use crate::models::*;
 use crate::tools::activities;
 use crate::tools::instructions;
 use crate::tools::leads;
+use crate::tools::lists;
 use crate::tools::opportunities;
 use crate::tools::sales;
 use crate::tools::tasks;
@@ -455,6 +456,50 @@ impl LsqMcpServer {
         if let Err(e) = self.ensure_client().await { return Ok(e); }
         let guard = self.get_client().await;
         let result = users::get_user_availability(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get all lists (static and dynamic) in the LSQ account. Returns list names, IDs, and types.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_lists(&self) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = lists::get_lists(guard.as_ref().unwrap()).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get paginated leads in a specific list. Use get_lists first to find the list ID.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_leads_in_list(&self, Parameters(params): Parameters<ListIdParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = lists::get_leads_in_list(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get all lists that a specific lead belongs to. Pass the lead's ProspectID.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_lead_list_memberships(&self, Parameters(params): Parameters<LeadListMembershipsParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = lists::get_lead_list_memberships(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get the total number of leads in a list without fetching the leads themselves.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_list_lead_count(&self, Parameters(params): Parameters<ListIdParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = lists::get_list_lead_count(guard.as_ref().unwrap(), &params).await;
         check_auth(self, result).await
     }
 }
