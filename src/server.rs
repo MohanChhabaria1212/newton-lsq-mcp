@@ -10,9 +10,11 @@ use crate::auth;
 use crate::client::LsqClient;
 use crate::error::{LsqError, lsq_error};
 use crate::models::*;
+use crate::tools::activities;
 use crate::tools::instructions;
 use crate::tools::leads;
 use crate::tools::opportunities;
+use crate::tools::sales;
 
 #[derive(Clone)]
 pub struct LsqMcpServer {
@@ -275,6 +277,61 @@ impl LsqMcpServer {
         if let Err(e) = self.ensure_client().await { return Ok(e); }
         let guard = self.get_client().await;
         let result = opportunities::search_opportunities(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get all activity type definitions for this LSQ account — names, IDs, and field schemas. Cached after first call. Call this before filtering activities by type.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_activity_types(&self) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = activities::get_activity_types(guard.as_ref().unwrap()).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get paginated activity log for a lead. Returns all activity types; filter by activity name after retrieval if needed.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_activities_by_lead(&self, Parameters(params): Parameters<ActivitiesByLeadParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = activities::get_activities_by_lead(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get the product catalogue. Cached after first call. Products are referenced in sales activity records.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_products(&self) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = sales::get_products(guard.as_ref().unwrap()).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get all sales activity type configurations for this account.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_sales_activity_types(&self) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = sales::get_sales_activity_types(guard.as_ref().unwrap()).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get sales activity (transaction) records for a lead. Returns paginated sales interactions with product and revenue data.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_sales_activities_by_lead(&self, Parameters(params): Parameters<SalesActivitiesByLeadParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = sales::get_sales_activities_by_lead(guard.as_ref().unwrap(), &params).await;
         check_auth(self, result).await
     }
 }
