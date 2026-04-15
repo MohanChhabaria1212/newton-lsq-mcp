@@ -16,6 +16,7 @@ use crate::tools::leads;
 use crate::tools::opportunities;
 use crate::tools::sales;
 use crate::tools::tasks;
+use crate::tools::users;
 
 #[derive(Clone)]
 pub struct LsqMcpServer {
@@ -388,6 +389,72 @@ impl LsqMcpServer {
         if let Err(e) = self.ensure_client().await { return Ok(e); }
         let guard = self.get_client().await;
         let result = tasks::get_todos(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get all users in the LSQ account. Returns up to 200 users. Use search_users for accounts with more users or to filter by specific attributes.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_users(&self) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = users::get_users(guard.as_ref().unwrap()).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get a single user's details by their user ID.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_user_by_id(&self, Parameters(params): Parameters<UserIdParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = users::get_user_by_id(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Search users with filter conditions. Useful for large accounts or filtering by role, team, or other attributes.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn search_users(&self, Parameters(params): Parameters<SearchUsersParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = users::search_users(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get all users in a manager's reporting chain (hierarchy). Pass the manager's user ID.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_user_hierarchy(&self, Parameters(params): Parameters<UserHierarchyParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = users::get_user_hierarchy(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get field check-in history for a user. Optionally filter by date range (UTC YYYY-MM-DD HH:MM:SS).",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_user_checkin_history(&self, Parameters(params): Parameters<CheckInHistoryParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = users::get_user_checkin_history(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get working hours and availability slots for a user (by user_id or email).",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_user_availability(&self, Parameters(params): Parameters<AvailabilityParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = users::get_user_availability(guard.as_ref().unwrap(), &params).await;
         check_auth(self, result).await
     }
 }
