@@ -41,9 +41,10 @@ mod tests {
 
     #[test]
     fn credentials_path_uses_lsq_mcp_home_when_set() {
-        std::env::set_var("LSQ_MCP_HOME", "/tmp/test-lsq");
+        // SAFETY: single-threaded test binary, no concurrent env access
+        unsafe { std::env::set_var("LSQ_MCP_HOME", "/tmp/test-lsq"); }
         let path = credentials_path().unwrap();
         assert_eq!(path, std::path::PathBuf::from("/tmp/test-lsq/credentials.json"));
-        std::env::remove_var("LSQ_MCP_HOME");
+        unsafe { std::env::remove_var("LSQ_MCP_HOME"); }
     }
 }
