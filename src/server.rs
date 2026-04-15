@@ -11,6 +11,7 @@ use crate::client::LsqClient;
 use crate::error::{LsqError, lsq_error};
 use crate::models::*;
 use crate::tools::instructions;
+use crate::tools::leads;
 
 #[derive(Clone)]
 pub struct LsqMcpServer {
@@ -142,6 +143,83 @@ impl LsqMcpServer {
     )]
     async fn get_instructions(&self) -> Result<CallToolResult, ErrorData> {
         Ok(CallToolResult::success(vec![Content::text(instructions::INSTRUCTIONS)]))
+    }
+
+    #[tool(
+        description = "Get all lead field schemas, types, and picklist values for this LSQ account. CALL THIS FIRST before any search — custom field names vary per account. Results are cached for the session.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_lead_metadata(&self) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = leads::get_lead_metadata(guard.as_ref().unwrap()).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Search leads with filters on any field (stage, owner, date range, custom fields). Call get_lead_metadata first to discover field names. Filters format: [{\"Attribute\":\"FieldName\",\"Operator\":\"eq\",\"Value\":\"...\"}]. All dates must be UTC YYYY-MM-DD HH:MM:SS. Returns paginated results with has_more.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn search_leads(&self, Parameters(params): Parameters<SearchLeadsParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = leads::search_leads(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get full lead details by ProspectID (GUID). Use when you have a specific lead ID from a previous search result.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_lead_by_id(&self, Parameters(params): Parameters<LeadIdParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = leads::get_lead_by_id(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Look up a lead by their email address.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_lead_by_email(&self, Parameters(params): Parameters<LeadEmailParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = leads::get_lead_by_email(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Look up a lead by their phone number.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_lead_by_phone(&self, Parameters(params): Parameters<LeadPhoneParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = leads::get_lead_by_phone(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get all notes attached to a lead. Use when the user asks about comments, remarks, or notes on a lead.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_lead_notes(&self, Parameters(params): Parameters<LeadIdParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = leads::get_lead_notes(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get the full activity history for a lead — every interaction logged in LSQ. Returns all activity types mixed together; filter by activity type name if needed.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_lead_activities(&self, Parameters(params): Parameters<LeadIdParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = leads::get_lead_activities(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
     }
 }
 
