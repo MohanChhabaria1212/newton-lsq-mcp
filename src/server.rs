@@ -11,6 +11,7 @@ use crate::client::LsqClient;
 use crate::error::{LsqError, lsq_error};
 use crate::models::*;
 use crate::tools::activities;
+use crate::tools::analytics;
 use crate::tools::instructions;
 use crate::tools::leads;
 use crate::tools::lists;
@@ -500,6 +501,50 @@ impl LsqMcpServer {
         if let Err(e) = self.ensure_client().await { return Ok(e); }
         let guard = self.get_client().await;
         let result = lists::get_list_lead_count(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get lead distribution by owner, stage, or other dimensions with aggregation. Requires Elasticsearch enabled on your LSQ account. Pass filters JSON following the LSQ Lead Distribution API schema.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_lead_distribution(&self, Parameters(params): Parameters<LeadDistributionParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = analytics::get_lead_distribution(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get leads that have not been contacted (no qualifying activity) in a date range. Requires Elasticsearch. Pass filters JSON following the LSQ Leads Not Contacted API schema.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_leads_not_contacted(&self, Parameters(params): Parameters<LeadsNotContactedParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = analytics::get_leads_not_contacted(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get leads that have no active (pending) tasks. Requires Elasticsearch. Pass filters JSON following the LSQ Leads With No Active Tasks API schema.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_leads_no_active_tasks(&self, Parameters(params): Parameters<LeadsNoActiveTasksParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = analytics::get_leads_no_active_tasks(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get leads with overdue or pending tasks. Requires Elasticsearch. Pass filters JSON following the LSQ Leads With Pending Tasks API schema (use TaskFilters.Status: Pending/Overdue/PendingAndOverdue).",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_leads_pending_tasks(&self, Parameters(params): Parameters<LeadsPendingTasksParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = analytics::get_leads_pending_tasks(guard.as_ref().unwrap(), &params).await;
         check_auth(self, result).await
     }
 }
