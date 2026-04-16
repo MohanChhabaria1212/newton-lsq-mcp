@@ -1,0 +1,5 @@
+[test]
+# Auth tests mutate LSQ_MCP_HOME (a process-wide env var). Running tests in
+# parallel causes races where one thread's set_var is seen by another thread's
+# load_credentials call. Single-threaded test execution is required.
+test-threads = 1

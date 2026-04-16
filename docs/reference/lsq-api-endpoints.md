@@ -4,7 +4,7 @@ All endpoints used by lsq-mcp. Edit this file to update URLs without touching so
 
 Base URL: `https://{host}/v2` (e.g. `https://api.leadsquared.com/v2`)
 
-Auth: all standard endpoints use headers `x-LSQ-AccessKey` and `x-LSQ-SecretKey`. Analytics endpoints use `?accessKey=&secretKey=` query params.
+Auth: **all** endpoints use `?accessKey=&secretKey=` query params. No headers required.
 
 ---
 
@@ -21,7 +21,8 @@ Auth: all standard endpoints use headers `x-LSQ-AccessKey` and `x-LSQ-SecretKey`
 | Source file | Method | Path | Notes |
 |---|---|---|---|
 | `src/client.rs` (cached) | GET | `/LeadManagement.svc/LeadsMetaData.Get` | Returns all field schema for leads. Cached per session. |
-| `src/tools/leads.rs` | POST | `/LeadManagement.svc/Leads.Get` | Search leads. Body: `{ Filters: [...], Paging: { PageIndex, PageSize } }`. |
+| `src/tools/leads.rs` | POST | `/LeadManagement.svc/Leads.Get` | Search leads. Body: `{ Parameter: { LookupName, LookupValue, SqlOperator }, Paging: { PageIndex (1-based), PageSize } }`. Empty `Parameter: {}` returns all leads. Response: direct array of lead objects (no wrapper). SqlOperator: `=`, `LIKE`, `>`, `<`, `<=`, `>=`, `<>`. |
+| `src/tools/leads.rs` | GET | `/LeadManagement.svc/Leads.GetByQuickSearch?key={term}` | Full-text search across name, email, phone, company, city, country. Returns array of leads. |
 | `src/tools/leads.rs` | GET | `/LeadManagement.svc/Leads.GetById?id={leadId}` | Fetch single lead by ProspectID. |
 | `src/tools/leads.rs` | GET | `/LeadManagement.svc/Leads.GetByEmailaddress?emailaddress={email}` | Lookup lead by email. |
 | `src/tools/leads.rs` | GET | `/LeadManagement.svc/RetrieveLeadByPhoneNumber?phone={phone}` | Lookup lead by phone. |

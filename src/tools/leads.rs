@@ -18,32 +18,45 @@ pub async fn search_leads(
     client: &LsqClient,
     params: &SearchLeadsParams,
 ) -> Result<CallToolResult, ErrorData> {
-    let page_index = params.page.unwrap_or(1).saturating_sub(1);
-    let page_size = params.page_size.unwrap_or(25).min(100);
-    let filters = params.filters.clone().unwrap_or_else(|| json!([]));
+    // LSQ PageIndex is 1-based
+    let page_index = params.page.unwrap_or(1).max(1);
+    let page_size = params.page_size.unwrap_or(25).min(1000);
+
+    // Build Parameter: single-field lookup or empty object for all leads
+    let parameter = match (&params.lookup_name, &params.lookup_value) {
+        (Some(name), Some(value)) if !name.is_empty() => {
+            let op = params.operator.as_deref().unwrap_or("=");
+            json!({
+                "LookupName": name,
+                "LookupValue": value,
+                "SqlOperator": op
+            })
+        }
+        _ => json!({}),
+    };
 
     let body = json!({
-        "Filters": filters,
+        "Parameter": parameter,
         "Paging": {
             "PageIndex": page_index,
             "PageSize": page_size
         }
     });
 
-    let data: Value = client
+    // Response is a direct JSON array of lead objects
+    let results: Value = client
         .post("/LeadManagement.svc/Leads.Get", &body)
         .await
         .map_err(|e| api_error("Failed to search leads", e))?;
 
-    let total = data.get("TotalCount").and_then(|v| v.as_i64()).unwrap_or(0);
-    let results = data.get("RecordList").cloned().unwrap_or_else(|| json!([]));
-    let count = results.as_array().map(|a| a.len() as i64).unwrap_or(0);
-    let has_more = (page_index as i64 * page_size as i64 + count) < total;
+    let count = results.as_array().map(|a| a.len()).unwrap_or(0);
+    // No TotalCount in response; infer has_more from a full page
+    let has_more = count == page_size as usize;
 
     success_json(&json!({
         "results": results,
-        "total_count": total,
-        "page": page_index + 1,
+        "count": count,
+        "page": page_index,
         "page_size": page_size,
         "has_more": has_more
     }))

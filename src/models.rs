@@ -24,13 +24,18 @@ impl PaginationParams {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SearchLeadsParams {
-    /// JSON array of filter conditions. Each condition: {"Attribute":"FieldName","Operator":"eq|gt|lt|contains","Value":"..."}
-    /// Call get_lead_metadata first to discover valid field names (especially custom fields).
-    /// All date values must be UTC in YYYY-MM-DD HH:MM:SS format.
-    pub filters: Option<serde_json::Value>,
+    /// Field name (LSQ schema name) to filter on, e.g. "ProspectStage", "EmailAddress", "CreatedOn", "OwnerId".
+    /// Call get_lead_metadata first to discover valid field schema names (especially custom fields starting with mx_).
+    /// Leave blank (omit) to retrieve all leads without filtering.
+    pub lookup_name: Option<String>,
+    /// Value to match. For dates use UTC format: "YYYY-MM-DD HH:MM:SS".
+    pub lookup_value: Option<String>,
+    /// SQL comparison operator: =, LIKE, >, <, <=, >=, <>. Default: =
+    /// Use LIKE for partial string match, = for exact match.
+    pub operator: Option<String>,
     /// Page number (1-based). Default: 1.
     pub page: Option<u32>,
-    /// Results per page. Default: 25. Maximum: 100.
+    /// Results per page. Default: 25. Maximum: 1000.
     pub page_size: Option<u32>,
 }
 
