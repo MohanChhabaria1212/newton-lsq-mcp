@@ -31,10 +31,10 @@ cargo install lsq-mcp
 lsq-mcp configure
 ```
 
-You'll be prompted for your LSQ Access Key and Secret Key. Find them at:
+You'll be prompted for your email, Access Key, Secret Key, and the URL you open LeadSquared at in your browser. Find your API keys at:
 **LSQ Portal → My Account → Settings → API and Webhooks**
 
-The setup validates your credentials live and shows your connected account before saving.
+The setup validates your credentials live, matches your account by email, shows your name/role, and asks for confirmation before saving. The API host is derived automatically from your browser URL — no need to look it up.
 
 ### 3. Add to your MCP client
 
@@ -76,16 +76,6 @@ claude mcp add lsq -- lsq-mcp
 | **Analytics** *(requires Elasticsearch)* | `get_lead_distribution`, `get_leads_not_contacted`, `get_leads_no_active_tasks`, `get_leads_pending_tasks` |
 
 Call `get_instructions` first — it describes all tools, recommended call sequences, and date format requirements.
-
-## Regional hosts
-
-By default `lsq-mcp` connects to `api.leadsquared.com` (India/global). If your account is on a different region, enter the correct host during `lsq-mcp configure`:
-
-| Region | Host |
-|---|---|
-| India / Global | `api.leadsquared.com` |
-| US | `api-us.leadsquared.com` |
-| AU | `api-au.leadsquared.com` |
 
 ## Requirements
 

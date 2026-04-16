@@ -15,14 +15,15 @@ lsq-mcp configure
 ```
 
 The wizard will:
-1. Prompt for your Access Key
-2. Prompt for your Secret Key
-3. Prompt for your API host (press Enter for the default `api.leadsquared.com`)
-4. Make a test API call to validate the credentials
-5. Display your connected account email
-6. Save credentials to `~/.lsq-mcp/credentials.json` (permissions: `0600`)
+1. Prompt for your LSQ email address
+2. Prompt for your Access Key
+3. Prompt for your Secret Key
+4. Prompt for your LSQ portal URL (e.g. `https://app.in21.leadsquared.com/leads`) — the URL you open in your browser. The API host is derived automatically from this.
+5. Validate credentials against the LSQ API
+6. Display the matched account (name, email, role) and ask you to confirm
+7. Save credentials to `~/.lsq-mcp/credentials.json` (permissions: `0600`) only after confirmation
 
-Nothing is saved if validation fails — you can safely re-run configure as many times as needed.
+Nothing is saved if validation fails or you decline the confirmation prompt — you can safely re-run configure as many times as needed.
 
 ## Checking current config
 
@@ -47,13 +48,18 @@ lsq-mcp configure
 
 ## Regional hosts
 
-| Region | Host |
-|---|---|
-| India / Global (default) | `api.leadsquared.com` |
-| US | `api-us.leadsquared.com` |
-| AU | `api-au.leadsquared.com` |
+You don't need to know your API host. During `lsq-mcp configure`, paste the URL you normally open in your browser (e.g. `https://app.in21.leadsquared.com/leads`) and the correct API host is derived automatically.
 
-Enter the correct host for your account region during `lsq-mcp configure`.
+Supported portal URL patterns:
+
+| Browser URL | Derived API host |
+|---|---|
+| `app.leadsquared.com` | `api.leadsquared.com` |
+| `app.in21.leadsquared.com` | `api-in21.leadsquared.com` |
+| `app-us.leadsquared.com` | `api-us.leadsquared.com` |
+| `app-au.leadsquared.com` | `api-au.leadsquared.com` |
+
+Any `app.{cluster}.leadsquared.com` or `app-{region}.leadsquared.com` URL is handled automatically.
 
 ## MCP client setup
 
