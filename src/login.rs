@@ -187,8 +187,8 @@ async fn validate_and_lookup(
 
     let base = config::api_base(&creds.host);
 
-    // Verify the keys are valid
-    let check_url = reqwest::Url::parse_with_params(
+    // One call: validate credentials AND fetch users list
+    let users_url = reqwest::Url::parse_with_params(
         &format!("{}/UserManagement.svc/Users.Get", base),
         &[
             ("accessKey", creds.access_key.as_str()),
@@ -196,8 +196,8 @@ async fn validate_and_lookup(
         ],
     ).map_err(|e| LsqError::Configure(format!("URL error: {}", e)))?;
 
-    let check = client
-        .get(check_url)
+    let resp = client
+        .get(users_url)
         .send()
         .await
         .map_err(|e| {
@@ -208,43 +208,19 @@ async fn validate_and_lookup(
             }
         })?;
 
-    if check.status() == reqwest::StatusCode::UNAUTHORIZED {
+    if resp.status() == reqwest::StatusCode::UNAUTHORIZED {
         return Err(LsqError::Unauthorized);
     }
-    check.error_for_status().map_err(LsqError::Api)?;
-
-    // Look up the specific user by email
-    let search_body = serde_json::json!({
-        "Filters": [
-            { "Attribute": "EmailAddress", "Operator": "eq", "Value": email }
-        ],
-        "Paging": { "PageIndex": 0, "PageSize": 200 }
-    });
-
-    let search_url = reqwest::Url::parse_with_params(
-        &format!("{}/UserManagement.svc/User/AdvancedSearch", base),
-        &[
-            ("accessKey", creds.access_key.as_str()),
-            ("secretKey", creds.secret_key.as_str()),
-        ],
-    ).map_err(|e| LsqError::Configure(format!("URL error: {}", e)))?;
-
-    let resp = client
-        .post(search_url)
-        .json(&search_body)
-        .send()
-        .await
-        .map_err(LsqError::Api)?
+    let body: serde_json::Value = resp
         .error_for_status()
+        .map_err(LsqError::Api)?
+        .json()
+        .await
         .map_err(LsqError::Api)?;
 
-    let body: serde_json::Value = resp.json().await.map_err(LsqError::Api)?;
-
+    // Users.Get returns an array directly
     let users = body
-        .get("Users")
-        .or_else(|| body.get("RecordList"))
-        .and_then(|v| v.as_array())
-        .or_else(|| body.as_array())
+        .as_array()
         .ok_or(LsqError::NotFound)?;
 
     // Find the user whose email actually matches — the API may return all users
