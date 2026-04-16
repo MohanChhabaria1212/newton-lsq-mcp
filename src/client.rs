@@ -254,6 +254,9 @@ mod tests {
             access_key: "test".into(),
             secret_key: "test".into(),
             host: "api.leadsquared.com".into(),
+            user_name: None,
+            user_email: None,
+            user_role: None,
         })
     }
 

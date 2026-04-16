@@ -20,6 +20,9 @@ pub enum LsqError {
     #[error("Rate limit exhausted after retries")]
     RateLimitExhausted,
 
+    #[error("Not found")]
+    NotFound,
+
     #[error("Auth error: {0}")]
     Auth(String),
 

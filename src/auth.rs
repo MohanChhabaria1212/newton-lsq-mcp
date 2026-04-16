@@ -13,6 +13,15 @@ pub struct Credentials {
     pub access_key: String,
     pub secret_key: String,
     pub host: String,
+    /// Full name of the connected LSQ user — stored at configure time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_name: Option<String>,
+    /// Email of the connected LSQ user — stored at configure time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_email: Option<String>,
+    /// Role of the connected LSQ user — stored at configure time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_role: Option<String>,
 }
 
 pub fn load_credentials() -> Result<Option<Credentials>, LsqError> {
@@ -93,6 +102,9 @@ mod tests {
             access_key: "test_access".into(),
             secret_key: "test_secret".into(),
             host: "api.leadsquared.com".into(),
+            user_name: Some("Test User".into()),
+            user_email: Some("test@example.com".into()),
+            user_role: Some("Admin".into()),
         };
         save_credentials(&creds).unwrap();
         let loaded = load_credentials().unwrap().unwrap();
