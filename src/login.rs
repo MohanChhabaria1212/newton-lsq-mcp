@@ -1,18 +1,25 @@
 use std::io::{self, BufRead, Write};
+use std::time::Duration;
 
 use crate::auth::{self, Credentials};
 use crate::config;
 use crate::error::LsqError;
 
+/// All known LSQ regional API hosts, in priority order.
+const KNOWN_HOSTS: &[(&str, &str)] = &[
+    ("api.leadsquared.com",    "India / Global"),
+    ("api-us.leadsquared.com", "United States"),
+    ("api-au.leadsquared.com", "Australia"),
+];
+
 /// Details about the authenticated user, fetched from LSQ during configure.
 struct UserIdentity {
-    name: String,
+    name:  String,
     email: String,
-    role: String,
+    role:  String,
 }
 
 /// Run the interactive configure flow.
-/// Prompts for email + keys, validates, looks up identity, confirms, then saves.
 pub async fn configure() -> Result<(), LsqError> {
     let stdout = io::stdout();
 
@@ -37,18 +44,35 @@ pub async fn configure() -> Result<(), LsqError> {
         return Err(LsqError::Configure("Secret key cannot be empty".into()));
     }
 
-    let host_input = prompt(
-        &stdout,
-        &format!("API Host [{}]: ", config::DEFAULT_HOST),
-    )?;
-    let host = if host_input.is_empty() {
-        config::DEFAULT_HOST.to_string()
-    } else {
-        host_input
-            .trim_start_matches("https://")
-            .trim_start_matches("http://")
-            .trim_end_matches('/')
-            .to_string()
+    // Auto-detect API host — no need for the user to know their region
+    println!();
+    println!("Detecting API region...");
+
+    let host = match detect_host(&access_key, &secret_key).await {
+        Some((host, region)) => {
+            println!("  Region: {} ({})", region, host);
+            host.to_string()
+        }
+        None => {
+            // Detection failed — fall back to manual entry
+            println!("  Could not auto-detect region. Please enter your API host.");
+            println!("  Regions: {} India/Global  |  {} US  |  {} AU",
+                KNOWN_HOSTS[0].0, KNOWN_HOSTS[1].0, KNOWN_HOSTS[2].0);
+            println!();
+            let host_input = prompt(
+                &stdout,
+                &format!("API Host [{}]: ", config::DEFAULT_HOST),
+            )?;
+            if host_input.is_empty() {
+                config::DEFAULT_HOST.to_string()
+            } else {
+                host_input
+                    .trim_start_matches("https://")
+                    .trim_start_matches("http://")
+                    .trim_end_matches('/')
+                    .to_string()
+            }
+        }
     };
 
     println!();
@@ -58,12 +82,11 @@ pub async fn configure() -> Result<(), LsqError> {
         access_key,
         secret_key,
         host,
-        user_name: None,
+        user_name:  None,
         user_email: None,
-        user_role: None,
+        user_role:  None,
     };
 
-    // Step 1: validate keys and look up the user by the provided email
     let identity = match validate_and_lookup(&creds_base, &email).await {
         Ok(id) => id,
         Err(LsqError::Unauthorized) => {
@@ -75,7 +98,6 @@ pub async fn configure() -> Result<(), LsqError> {
         Err(LsqError::HostUnreachable(ref h)) => {
             println!();
             println!("✗ Could not reach {}.", h);
-            println!("  Check the API host matches your account region (see README for regional hosts).");
             return Err(LsqError::Configure(format!("Host unreachable: {}", h)));
         }
         Err(LsqError::NotFound) => {
@@ -92,7 +114,6 @@ pub async fn configure() -> Result<(), LsqError> {
         }
     };
 
-    // Step 2: show identity and ask for confirmation
     println!();
     println!("Found account:");
     println!("  Name:   {}", identity.name);
@@ -107,11 +128,10 @@ pub async fn configure() -> Result<(), LsqError> {
         return Err(LsqError::Configure("User cancelled".into()));
     }
 
-    // Step 3: save with identity attached
     let creds = Credentials {
-        user_name: Some(identity.name),
+        user_name:  Some(identity.name),
         user_email: Some(identity.email),
-        user_role: Some(identity.role),
+        user_role:  Some(identity.role),
         ..creds_base
     };
 
@@ -123,20 +143,57 @@ pub async fn configure() -> Result<(), LsqError> {
     Ok(())
 }
 
+/// Probe all known LSQ hosts in parallel and return the first one that
+/// responds (200 or 401 both confirm the host is reachable with these keys).
+/// Returns `(host, region_label)` for the winning host.
+async fn detect_host(access_key: &str, secret_key: &str) -> Option<(&'static str, &'static str)> {
+    let (r0, r1, r2) = tokio::join!(
+        probe_host(access_key, secret_key, KNOWN_HOSTS[0].0),
+        probe_host(access_key, secret_key, KNOWN_HOSTS[1].0),
+        probe_host(access_key, secret_key, KNOWN_HOSTS[2].0),
+    );
+
+    // Pick first reachable host in priority order
+    for (result, (host, region)) in [r0, r1, r2].into_iter().zip(KNOWN_HOSTS.iter()) {
+        if result {
+            return Some((host, region));
+        }
+    }
+    None
+}
+
+/// Returns true if the host responds (any HTTP status — even 401 confirms the host exists).
+async fn probe_host(access_key: &str, secret_key: &str, host: &str) -> bool {
+    let url = format!("{}/UserManagement.svc/Users.Get", config::api_base(host));
+    let Ok(client) = reqwest::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .build()
+    else {
+        return false;
+    };
+
+    client
+        .get(&url)
+        .header("x-LSQ-AccessKey", access_key)
+        .header("x-LSQ-SecretKey", secret_key)
+        .send()
+        .await
+        .is_ok() // any response (including 401) = host is reachable
+}
+
 /// Validate credentials and look up the specific user by email.
-/// Returns the user's display identity on success.
 async fn validate_and_lookup(
     creds: &Credentials,
     email: &str,
 ) -> Result<UserIdentity, LsqError> {
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
+        .timeout(Duration::from_secs(15))
         .build()
         .map_err(LsqError::Api)?;
 
     let base = config::api_base(&creds.host);
 
-    // Step 1: check the keys work at all
+    // Verify the keys are valid
     let check = client
         .get(format!("{}/UserManagement.svc/Users.Get", base))
         .header("x-LSQ-AccessKey", &creds.access_key)
@@ -156,7 +213,7 @@ async fn validate_and_lookup(
     }
     check.error_for_status().map_err(LsqError::Api)?;
 
-    // Step 2: look up the specific user by email
+    // Look up the specific user by email
     let search_body = serde_json::json!({
         "Filters": [
             { "Attribute": "EmailAddress", "Operator": "eq", "Value": email }
@@ -177,7 +234,7 @@ async fn validate_and_lookup(
 
     let body: serde_json::Value = resp.json().await.map_err(LsqError::Api)?;
 
-    // AdvancedSearch returns { Users: [...] } or an array directly — handle both
+    // AdvancedSearch returns { Users: [...] } or array directly — handle both
     let users = body
         .get("Users")
         .or_else(|| body.get("RecordList"))
