@@ -164,7 +164,13 @@ async fn detect_host(access_key: &str, secret_key: &str) -> Option<(&'static str
 
 /// Returns true if the host responds (any HTTP status — even 401 confirms the host exists).
 async fn probe_host(access_key: &str, secret_key: &str, host: &str) -> bool {
-    let url = format!("{}/UserManagement.svc/Users.Get", config::api_base(host));
+    let base_url = format!("{}/UserManagement.svc/Users.Get", config::api_base(host));
+    let Ok(url) = reqwest::Url::parse_with_params(&base_url, &[
+        ("accessKey", access_key),
+        ("secretKey", secret_key),
+    ]) else {
+        return false;
+    };
     let Ok(client) = reqwest::Client::builder()
         .timeout(Duration::from_secs(8))
         .build()
@@ -172,13 +178,7 @@ async fn probe_host(access_key: &str, secret_key: &str, host: &str) -> bool {
         return false;
     };
 
-    client
-        .get(&url)
-        .header("x-LSQ-AccessKey", access_key)
-        .header("x-LSQ-SecretKey", secret_key)
-        .send()
-        .await
-        .is_ok() // any response (including 401) = host is reachable
+    client.get(url).send().await.is_ok() // any HTTP response = host is reachable
 }
 
 /// Validate credentials and look up the specific user by email.
@@ -194,10 +194,16 @@ async fn validate_and_lookup(
     let base = config::api_base(&creds.host);
 
     // Verify the keys are valid
+    let check_url = reqwest::Url::parse_with_params(
+        &format!("{}/UserManagement.svc/Users.Get", base),
+        &[
+            ("accessKey", creds.access_key.as_str()),
+            ("secretKey", creds.secret_key.as_str()),
+        ],
+    ).map_err(|e| LsqError::Configure(format!("URL error: {}", e)))?;
+
     let check = client
-        .get(format!("{}/UserManagement.svc/Users.Get", base))
-        .header("x-LSQ-AccessKey", &creds.access_key)
-        .header("x-LSQ-SecretKey", &creds.secret_key)
+        .get(check_url)
         .send()
         .await
         .map_err(|e| {
@@ -221,10 +227,16 @@ async fn validate_and_lookup(
         "Paging": { "PageIndex": 0, "PageSize": 1 }
     });
 
+    let search_url = reqwest::Url::parse_with_params(
+        &format!("{}/UserManagement.svc/User/AdvancedSearch", base),
+        &[
+            ("accessKey", creds.access_key.as_str()),
+            ("secretKey", creds.secret_key.as_str()),
+        ],
+    ).map_err(|e| LsqError::Configure(format!("URL error: {}", e)))?;
+
     let resp = client
-        .post(format!("{}/UserManagement.svc/User/AdvancedSearch", base))
-        .header("x-LSQ-AccessKey", &creds.access_key)
-        .header("x-LSQ-SecretKey", &creds.secret_key)
+        .post(search_url)
         .json(&search_body)
         .send()
         .await

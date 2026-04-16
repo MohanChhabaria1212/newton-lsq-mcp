@@ -56,12 +56,17 @@ impl LsqClient {
     }
 
     pub async fn get_url<T: DeserializeOwned>(&self, url: &str) -> Result<T, LsqError> {
+        // Append auth as query params — LSQ's standard auth mechanism
+        let auth_url = reqwest::Url::parse_with_params(url, &[
+            ("accessKey", self.creds.access_key.as_str()),
+            ("secretKey", self.creds.secret_key.as_str()),
+        ]).map_err(|e| LsqError::Configure(format!("Invalid URL: {}", e)))?;
+        let url = auth_url.as_str();
+
         let mut delay_secs = 1u64;
         for attempt in 0..=MAX_RETRIES {
             let resp = self.http
                 .get(url)
-                .header("x-LSQ-AccessKey", &self.creds.access_key)
-                .header("x-LSQ-SecretKey", &self.creds.secret_key)
                 .send()
                 .await
                 .map_err(|e| {
@@ -117,43 +122,41 @@ impl LsqClient {
         self.post_url(&url, body, &[]).await
     }
 
-    /// POST for analytics endpoints — auth via query params, not headers.
+    /// POST for analytics endpoints — uses a different base URL and needs
+    /// responseformat=json in addition to the standard auth params.
     pub async fn post_analytics<T: DeserializeOwned>(
         &self,
         path: &str,
         body: &Value,
     ) -> Result<T, LsqError> {
         let url = format!("{}{}", self.analytics_base(), path);
-        let params = [
-            ("accessKey", self.creds.access_key.as_str()),
-            ("secretKey", self.creds.secret_key.as_str()),
-            ("responseformat", "json"),
-        ];
-        self.post_url(&url, body, &params).await
+        self.post_url(&url, body, &[("responseformat", "json")]).await
     }
 
+    /// All POSTs go through here. Auth is always appended as query params.
+    /// `extra_params` are appended after auth (used by analytics for responseformat).
     async fn post_url<T: DeserializeOwned>(
         &self,
         url: &str,
         body: &Value,
-        query_params: &[(&str, &str)],
+        extra_params: &[(&str, &str)],
     ) -> Result<T, LsqError> {
+        // Build auth + extra params, then bake into URL once before the retry loop
+        let mut all_params = vec![
+            ("accessKey", self.creds.access_key.as_str()),
+            ("secretKey", self.creds.secret_key.as_str()),
+        ];
+        all_params.extend_from_slice(extra_params);
+
+        let auth_url = reqwest::Url::parse_with_params(url, &all_params)
+            .map_err(|e| LsqError::Configure(format!("Invalid URL: {}", e)))?;
+        let url = auth_url.as_str().to_string();
+
         let mut delay_secs = 1u64;
         for attempt in 0..=MAX_RETRIES {
-            let req = if !query_params.is_empty() {
-                self.http
-                    .post(url)
-                    .query(query_params)
-                    .header("x-LSQ-AccessKey", &self.creds.access_key)
-                    .header("x-LSQ-SecretKey", &self.creds.secret_key)
-                    .json(body)
-            } else {
-                self.http
-                    .post(url)
-                    .header("x-LSQ-AccessKey", &self.creds.access_key)
-                    .header("x-LSQ-SecretKey", &self.creds.secret_key)
-                    .json(body)
-            };
+            let req = self.http
+                    .post(&url)
+                    .json(body);
 
             let resp = req.send().await.map_err(|e| {
                 if e.is_connect() || e.is_timeout() {
