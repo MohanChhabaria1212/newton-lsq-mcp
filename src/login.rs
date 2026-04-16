@@ -5,13 +5,6 @@ use crate::auth::{self, Credentials};
 use crate::config;
 use crate::error::LsqError;
 
-/// All known LSQ regional API hosts, in priority order.
-const KNOWN_HOSTS: &[(&str, &str)] = &[
-    ("api.leadsquared.com",    "India / Global"),
-    ("api-us.leadsquared.com", "United States"),
-    ("api-au.leadsquared.com", "Australia"),
-];
-
 /// Details about the authenticated user, fetched from LSQ during configure.
 struct UserIdentity {
     name:  String,
@@ -44,34 +37,19 @@ pub async fn configure() -> Result<(), LsqError> {
         return Err(LsqError::Configure("Secret key cannot be empty".into()));
     }
 
-    // Auto-detect API host — no need for the user to know their region
+    // Derive API host from the browser URL the user already knows
     println!();
-    println!("Detecting API region...");
+    println!("  Paste the URL you use to open LeadSquared in your browser");
+    println!("  (e.g. https://app.in21.leadsquared.com/leads)");
+    let portal_url = prompt(&stdout, "LSQ Portal URL: ")?;
 
-    let host = match detect_host(&access_key, &secret_key).await {
-        Some((host, region)) => {
-            println!("  Region: {} ({})", region, host);
-            host.to_string()
-        }
+    let host = match derive_api_host(&portal_url) {
+        Some(h) => h,
         None => {
-            // Detection failed — fall back to manual entry
-            println!("  Could not auto-detect region. Please enter your API host.");
-            println!("  Regions: {} India/Global  |  {} US  |  {} AU",
-                KNOWN_HOSTS[0].0, KNOWN_HOSTS[1].0, KNOWN_HOSTS[2].0);
             println!();
-            let host_input = prompt(
-                &stdout,
-                &format!("API Host [{}]: ", config::DEFAULT_HOST),
-            )?;
-            if host_input.is_empty() {
-                config::DEFAULT_HOST.to_string()
-            } else {
-                host_input
-                    .trim_start_matches("https://")
-                    .trim_start_matches("http://")
-                    .trim_end_matches('/')
-                    .to_string()
-            }
+            println!("✗ Could not recognise that as a LeadSquared URL.");
+            println!("  Expected something like: https://app.in21.leadsquared.com");
+            return Err(LsqError::Configure("Invalid portal URL".into()));
         }
     };
 
@@ -103,7 +81,7 @@ pub async fn configure() -> Result<(), LsqError> {
         Err(LsqError::NotFound) => {
             println!();
             println!("✗ Email '{}' was not found in this LSQ account.", email);
-            println!("  Make sure you entered the email address you use to log into the LSQ portal.");
+            println!("  Make sure you entered the email you use to log into the LSQ portal.");
             println!("  Note: admin credentials are required to look up other users.");
             return Err(LsqError::Configure("Email not found in account".into()));
         }
@@ -143,42 +121,58 @@ pub async fn configure() -> Result<(), LsqError> {
     Ok(())
 }
 
-/// Probe all known LSQ hosts in parallel and return the first one that
-/// responds (200 or 401 both confirm the host is reachable with these keys).
-/// Returns `(host, region_label)` for the winning host.
-async fn detect_host(access_key: &str, secret_key: &str) -> Option<(&'static str, &'static str)> {
-    let (r0, r1, r2) = tokio::join!(
-        probe_host(access_key, secret_key, KNOWN_HOSTS[0].0),
-        probe_host(access_key, secret_key, KNOWN_HOSTS[1].0),
-        probe_host(access_key, secret_key, KNOWN_HOSTS[2].0),
-    );
+/// Derive the LSQ API host from whatever URL the user opens in their browser.
+///
+/// Handles full URLs with paths/query strings, http or https, trailing slashes.
+///
+/// Mapping rules (all must end with `.leadsquared.com`):
+///   app.leadsquared.com            → api.leadsquared.com
+///   app.{cluster}.leadsquared.com  → api-{cluster}.leadsquared.com
+///   app-{region}.leadsquared.com   → api-{region}.leadsquared.com
+///
+/// Returns `None` if the URL is not a recognised LeadSquared portal URL.
+pub fn derive_api_host(input: &str) -> Option<String> {
+    // Strip protocol, get just the hostname
+    let without_proto = input
+        .trim()
+        .trim_start_matches("https://")
+        .trim_start_matches("http://");
 
-    // Pick first reachable host in priority order
-    for (result, (host, region)) in [r0, r1, r2].into_iter().zip(KNOWN_HOSTS.iter()) {
-        if result {
-            return Some((host, region));
-        }
+    // Take only the host part (before first / or ?)
+    let hostname = without_proto
+        .split(|c| c == '/' || c == '?' || c == '#')
+        .next()?
+        .trim()
+        .to_lowercase();
+
+    if hostname.is_empty() {
+        return None;
     }
-    None
-}
 
-/// Returns true if the host responds (any HTTP status — even 401 confirms the host exists).
-async fn probe_host(access_key: &str, secret_key: &str, host: &str) -> bool {
-    let base_url = format!("{}/UserManagement.svc/Users.Get", config::api_base(host));
-    let Ok(url) = reqwest::Url::parse_with_params(&base_url, &[
-        ("accessKey", access_key),
-        ("secretKey", secret_key),
-    ]) else {
-        return false;
-    };
-    let Ok(client) = reqwest::Client::builder()
-        .timeout(Duration::from_secs(8))
-        .build()
-    else {
-        return false;
+    // Must be a leadsquared.com domain
+    let subdomain = hostname.strip_suffix(".leadsquared.com")?;
+
+    let api_host = if subdomain == "app" {
+        // app.leadsquared.com → api.leadsquared.com
+        "api.leadsquared.com".to_string()
+    } else if let Some(cluster) = subdomain.strip_prefix("app.") {
+        // app.in21.leadsquared.com → api-in21.leadsquared.com
+        // Reject if cluster itself contains dots (unexpected nesting)
+        if cluster.is_empty() || cluster.contains('.') {
+            return None;
+        }
+        format!("api-{}.leadsquared.com", cluster)
+    } else if let Some(region) = subdomain.strip_prefix("app-") {
+        // app-us.leadsquared.com → api-us.leadsquared.com
+        if region.is_empty() {
+            return None;
+        }
+        format!("api-{}.leadsquared.com", region)
+    } else {
+        return None;
     };
 
-    client.get(url).send().await.is_ok() // any HTTP response = host is reachable
+    Some(api_host)
 }
 
 /// Validate credentials and look up the specific user by email.
@@ -246,7 +240,6 @@ async fn validate_and_lookup(
 
     let body: serde_json::Value = resp.json().await.map_err(LsqError::Api)?;
 
-    // AdvancedSearch returns { Users: [...] } or array directly — handle both
     let users = body
         .get("Users")
         .or_else(|| body.get("RecordList"))
@@ -315,5 +308,52 @@ pub fn status() {
         Err(e) => {
             println!("Status: Error reading credentials — {}", e);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn derive_host_standard_india() {
+        assert_eq!(
+            derive_api_host("https://app.leadsquared.com/leads"),
+            Some("api.leadsquared.com".into())
+        );
+    }
+
+    #[test]
+    fn derive_host_cluster_with_path() {
+        assert_eq!(
+            derive_api_host("https://app.in21.leadsquared.com/leads/list"),
+            Some("api-in21.leadsquared.com".into())
+        );
+    }
+
+    #[test]
+    fn derive_host_region_us() {
+        assert_eq!(
+            derive_api_host("https://app-us.leadsquared.com"),
+            Some("api-us.leadsquared.com".into())
+        );
+    }
+
+    #[test]
+    fn derive_host_no_protocol() {
+        assert_eq!(
+            derive_api_host("app.in21.leadsquared.com/dashboard"),
+            Some("api-in21.leadsquared.com".into())
+        );
+    }
+
+    #[test]
+    fn derive_host_invalid_domain() {
+        assert_eq!(derive_api_host("https://google.com"), None);
+    }
+
+    #[test]
+    fn derive_host_random_string() {
+        assert_eq!(derive_api_host("not a url"), None);
     }
 }
