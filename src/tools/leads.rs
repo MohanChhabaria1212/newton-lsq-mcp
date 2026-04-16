@@ -31,7 +31,7 @@ pub async fn search_leads(
     });
 
     let data: Value = client
-        .post("/Leads.svc/RetrieveLeadBySearchCriteria", &body)
+        .post("/LeadManagement.svc/Leads.Get", &body)
         .await
         .map_err(|e| api_error("Failed to search leads", e))?;
 
@@ -54,7 +54,7 @@ pub async fn get_lead_by_id(
     params: &LeadIdParam,
 ) -> Result<CallToolResult, ErrorData> {
     let data: Value = client
-        .get(&format!("/Leads.svc/RetrieveById?id={}", params.lead_id))
+        .get(&format!("/LeadManagement.svc/Leads.GetById?id={}", params.lead_id))
         .await
         .map_err(|e| api_error("Failed to fetch lead by ID", e))?;
     success_json(&data)
@@ -66,7 +66,7 @@ pub async fn get_lead_by_email(
 ) -> Result<CallToolResult, ErrorData> {
     let data: Value = client
         .get(&format!(
-            "/Leads.svc/RetrieveByEmailAddress?emailaddress={}",
+            "/LeadManagement.svc/Leads.GetByEmailaddress?emailaddress={}",
             params.email
         ))
         .await
@@ -80,7 +80,7 @@ pub async fn get_lead_by_phone(
 ) -> Result<CallToolResult, ErrorData> {
     let data: Value = client
         .get(&format!(
-            "/Leads.svc/RetrieveByPhoneNumber?phone={}",
+            "/LeadManagement.svc/RetrieveLeadByPhoneNumber?phone={}",
             params.phone
         ))
         .await
@@ -92,11 +92,14 @@ pub async fn get_lead_notes(
     client: &LsqClient,
     params: &LeadIdParam,
 ) -> Result<CallToolResult, ErrorData> {
+    let body = json!({
+        "Parameter": {
+            "RelatedId": params.lead_id,
+            "RelatedEntityTypeId": 1
+        }
+    });
     let data: Value = client
-        .get(&format!(
-            "/Notes.svc/RetrieveByLeadId?leadId={}",
-            params.lead_id
-        ))
+        .post("/LeadManagement.svc/RetrieveNote", &body)
         .await
         .map_err(|e| api_error("Failed to fetch lead notes", e))?;
     success_json(&data)
@@ -106,11 +109,15 @@ pub async fn get_lead_activities(
     client: &LsqClient,
     params: &LeadIdParam,
 ) -> Result<CallToolResult, ErrorData> {
+    // leadId goes as a query param; pagination goes in the body
+    let body = json!({
+        "Paging": { "PageIndex": 0, "PageSize": 100 }
+    });
     let data: Value = client
-        .get(&format!(
-            "/Activities.svc/RetrieveByLeadId?leadId={}",
-            params.lead_id
-        ))
+        .post(
+            &format!("/ProspectActivity.svc/Retrieve?leadId={}", params.lead_id),
+            &body,
+        )
         .await
         .map_err(|e| api_error("Failed to fetch lead activities", e))?;
     success_json(&data)

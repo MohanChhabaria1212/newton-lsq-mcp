@@ -16,7 +16,7 @@ pub async fn get_products(client: &LsqClient) -> Result<CallToolResult, ErrorDat
 
 pub async fn get_sales_activity_types(client: &LsqClient) -> Result<CallToolResult, ErrorData> {
     let data: Value = client
-        .get("/SalesActivity.svc/GetTypes")
+        .get("/SalesActivity.svc/RetrieveSetting")
         .await
         .map_err(|e| api_error("Failed to fetch sales activity types", e))?;
     success_json(&data)

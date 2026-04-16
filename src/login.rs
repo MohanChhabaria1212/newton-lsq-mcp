@@ -79,7 +79,7 @@ pub async fn configure() -> Result<(), LsqError> {
 /// Make a lightweight call to verify credentials and return a display string.
 async fn validate_credentials(creds: &Credentials) -> Result<String, LsqError> {
     let url = format!(
-        "{}/UserManagement.svc/GetAll?pageIndex=0&pageSize=1",
+        "{}/UserManagement.svc/Users.Get",
         config::api_base(&creds.host)
     );
 

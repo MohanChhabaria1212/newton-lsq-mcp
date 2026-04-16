@@ -1,6 +1,6 @@
 use rmcp::model::*;
 use rmcp::ErrorData;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::client::LsqClient;
 use crate::models::{AppointmentParams, TasksByLeadParams, TasksByOwnerParams};
@@ -23,7 +23,7 @@ pub async fn get_tasks_by_lead(
 
     let data: Value = client
         .get(&format!(
-            "/Task.svc/RetrieveByLeadId?leadId={}&pageIndex={}&pageSize={}",
+            "/LeadManagement.svc/RetrieveTaskByLeadId?leadId={}&pageIndex={}&pageSize={}",
             params.lead_id, page_index, page_size
         ))
         .await
@@ -38,11 +38,13 @@ pub async fn get_tasks_by_owner(
     let page_index = params.page.unwrap_or(1).saturating_sub(1);
     let page_size = params.page_size.unwrap_or(25).min(100);
 
+    let body = json!({
+        "UserId": params.owner_id,
+        "PageIndex": page_index,
+        "PageSize": page_size
+    });
     let data: Value = client
-        .get(&format!(
-            "/Task.svc/RetrieveByOwnerId?ownerId={}&pageIndex={}&pageSize={}",
-            params.owner_id, page_index, page_size
-        ))
+        .post("/Task.svc/Retrieve", &body)
         .await
         .map_err(|e| api_error("Failed to fetch tasks by owner", e))?;
     success_json(&data)

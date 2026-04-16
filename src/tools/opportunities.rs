@@ -20,7 +20,7 @@ pub async fn get_opportunity_metadata(
 ) -> Result<CallToolResult, ErrorData> {
     let data: Value = client
         .get(&format!(
-            "/Opportunities.svc/GetMetaData?opportunityTypeId={}",
+            "/OpportunityManagement.svc/GetOpportunityTypeMetadata?code={}",
             params.opportunity_type_id
         ))
         .await
@@ -34,7 +34,7 @@ pub async fn get_opportunity_by_id(
 ) -> Result<CallToolResult, ErrorData> {
     let data: Value = client
         .get(&format!(
-            "/Opportunities.svc/RetrieveById?id={}",
+            "/OpportunityManagement.svc/GetOpportunityDetails?OpportunityId={}",
             params.opportunity_id
         ))
         .await
@@ -46,11 +46,12 @@ pub async fn get_opportunities_by_lead(
     client: &LsqClient,
     params: &LeadIdParam,
 ) -> Result<CallToolResult, ErrorData> {
+    // leadId goes as query param; empty body triggers default (all types)
     let data: Value = client
-        .get(&format!(
-            "/Opportunities.svc/RetrieveByLeadId?leadId={}",
-            params.lead_id
-        ))
+        .post(
+            &format!("/OpportunityManagement.svc/GetOpportunitiesOfLead?leadId={}", params.lead_id),
+            &json!({}),
+        )
         .await
         .map_err(|e| api_error("Failed to fetch opportunities by lead", e))?;
     success_json(&data)
@@ -73,7 +74,7 @@ pub async fn search_opportunities(
     });
 
     let data: Value = client
-        .post("/Opportunities.svc/Search", &body)
+        .post("/OpportunityManagement.svc/Retrieve/BySearchParameter", &body)
         .await
         .map_err(|e| api_error("Failed to search opportunities", e))?;
 

@@ -192,31 +192,35 @@ impl LsqClient {
 
     pub async fn get_lead_metadata_cached(&self) -> Result<Value, LsqError> {
         cached_get(&self.lead_metadata_cache, || async {
-            self.get::<Value>("/LeadFields.svc/GetFields").await
+            self.get::<Value>("/LeadManagement.svc/LeadsMetaData.Get").await
         }).await
     }
 
     pub async fn get_activity_types_cached(&self) -> Result<Value, LsqError> {
         cached_get(&self.activity_types_cache, || async {
-            self.get::<Value>("/ActivityTypes.svc/GetAll").await
+            self.get::<Value>("/ProspectActivity.svc/ActivityTypes.Get").await
         }).await
     }
 
     pub async fn get_opportunity_types_cached(&self) -> Result<Value, LsqError> {
         cached_get(&self.opportunity_types_cache, || async {
-            self.get::<Value>("/Opportunities.svc/GetTypes").await
+            self.get::<Value>("/OpportunityManagement.svc/GetOpportunityTypes").await
         }).await
     }
 
     pub async fn get_task_types_cached(&self) -> Result<Value, LsqError> {
         cached_get(&self.task_types_cache, || async {
-            self.get::<Value>("/Task.svc/GetTypes").await
+            // LSQ does not publish a dedicated task-types endpoint in their docs.
+            // This path is a best-effort guess; update here if the correct path is confirmed.
+            self.get::<Value>("/Task.svc/TaskType/GetAll").await
         }).await
     }
 
     pub async fn get_products_cached(&self) -> Result<Value, LsqError> {
         cached_get(&self.products_cache, || async {
-            self.get::<Value>("/SalesActivity.svc/GetProducts").await
+            // LSQ does not publish a dedicated products endpoint in their docs.
+            // This path is a best-effort guess; update here if the correct path is confirmed.
+            self.get::<Value>("/SalesActivity.svc/Product/GetAll").await
         }).await
     }
 }
