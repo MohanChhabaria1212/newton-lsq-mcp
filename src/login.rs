@@ -218,7 +218,7 @@ async fn validate_and_lookup(
         "Filters": [
             { "Attribute": "EmailAddress", "Operator": "eq", "Value": email }
         ],
-        "Paging": { "PageIndex": 0, "PageSize": 1 }
+        "Paging": { "PageIndex": 0, "PageSize": 200 }
     });
 
     let search_url = reqwest::Url::parse_with_params(
@@ -247,7 +247,19 @@ async fn validate_and_lookup(
         .or_else(|| body.as_array())
         .ok_or(LsqError::NotFound)?;
 
-    let user = users.first().ok_or(LsqError::NotFound)?;
+    // Find the user whose email actually matches — the API may return all users
+    // regardless of the filter, and obsolete accounts have emails like
+    // "user@domain.com.12345.obsolete". We skip those and match by exact email.
+    let email_lower = email.trim().to_lowercase();
+    let user = users
+        .iter()
+        .find(|u| {
+            u.get("EmailAddress")
+                .and_then(|v| v.as_str())
+                .map(|e| e.trim().to_lowercase() == email_lower)
+                .unwrap_or(false)
+        })
+        .ok_or(LsqError::NotFound)?;
 
     let first = user.get("FirstName").and_then(|v| v.as_str()).unwrap_or("");
     let last  = user.get("LastName").and_then(|v| v.as_str()).unwrap_or("");
