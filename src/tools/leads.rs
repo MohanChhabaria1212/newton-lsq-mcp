@@ -3,7 +3,10 @@ use rmcp::ErrorData;
 use serde_json::{json, Value};
 
 use crate::client::LsqClient;
-use crate::models::{LeadEmailParam, LeadIdParam, LeadPhoneParam, SearchLeadsParams};
+use crate::models::{
+    GetLeadsByIdsParams, LeadEmailParam, LeadIdParam, LeadOwnerParams, LeadPhoneParam,
+    QuickSearchLeadsParams, RecentlyModifiedLeadsParams, SearchLeadsParams,
+};
 use crate::server::{api_error, success_json};
 
 pub async fn get_lead_metadata(client: &LsqClient) -> Result<CallToolResult, ErrorData> {
@@ -133,6 +136,86 @@ pub async fn get_lead_activities(
         )
         .await
         .map_err(|e| api_error("Failed to fetch lead activities", e))?;
+    success_json(&data)
+}
+
+/// Full-text search across name, email, phone, company, city, country.
+pub async fn quick_search_leads(
+    client: &LsqClient,
+    params: &QuickSearchLeadsParams,
+) -> Result<CallToolResult, ErrorData> {
+    let data: Value = client
+        .get_with_params(
+            "/LeadManagement.svc/Leads.GetByQuickSearch",
+            &[("key", params.key.as_str())],
+        )
+        .await
+        .map_err(|e| api_error("Failed to quick-search leads", e))?;
+    success_json(&data)
+}
+
+/// Bulk-fetch leads by a list of ProspectIDs.
+pub async fn get_leads_by_ids(
+    client: &LsqClient,
+    params: &GetLeadsByIdsParams,
+) -> Result<CallToolResult, ErrorData> {
+    let page_index = params.page.unwrap_or(1).max(1);
+    let page_size = params.page_size.unwrap_or(25).min(1000);
+    let columns = params.columns.as_deref().unwrap_or("");
+
+    let body = json!({
+        "SearchParameters": { "LeadIds": params.lead_ids },
+        "Columns": { "Include_CSV": columns },
+        "Paging": { "PageIndex": page_index, "PageSize": page_size }
+    });
+
+    let data: Value = client
+        .post("/LeadManagement.svc/Leads/Retrieve/ByIds", &body)
+        .await
+        .map_err(|e| api_error("Failed to fetch leads by IDs", e))?;
+    success_json(&data)
+}
+
+/// Get the owner of a lead by any unique field (e.g. EmailAddress, LeadId, Phone).
+pub async fn get_lead_owner(
+    client: &LsqClient,
+    params: &LeadOwnerParams,
+) -> Result<CallToolResult, ErrorData> {
+    let data: Value = client
+        .get_with_params(
+            "/LeadManagement.svc/LeadOwner.Get",
+            &[
+                ("LeadIdentifier", params.lead_identifier.as_str()),
+                ("value", params.value.as_str()),
+            ],
+        )
+        .await
+        .map_err(|e| api_error("Failed to fetch lead owner", e))?;
+    success_json(&data)
+}
+
+/// Get leads modified within a date range.
+pub async fn get_recently_modified_leads(
+    client: &LsqClient,
+    params: &RecentlyModifiedLeadsParams,
+) -> Result<CallToolResult, ErrorData> {
+    let page_index = params.page.unwrap_or(1).max(1);
+    let page_size = params.page_size.unwrap_or(100).min(1000);
+    let columns = params.columns.as_deref().unwrap_or("ProspectID,FirstName,LastName,EmailAddress,ModifiedOn");
+
+    let body = json!({
+        "Parameter": {
+            "FromDate": params.from_date,
+            "ToDate": params.to_date
+        },
+        "Columns": { "Include_CSV": columns },
+        "Paging": { "PageIndex": page_index, "PageSize": page_size }
+    });
+
+    let data: Value = client
+        .post("/LeadManagement.svc/Leads.RecentlyModified", &body)
+        .await
+        .map_err(|e| api_error("Failed to fetch recently modified leads", e))?;
     success_json(&data)
 }
 

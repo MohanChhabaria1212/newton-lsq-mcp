@@ -9,7 +9,17 @@ use tokio::sync::RwLock;
 use crate::auth;
 use crate::client::LsqClient;
 use crate::error::{LsqError, lsq_error};
-use crate::models::*;
+use crate::models::{
+    ActivitiesByLeadParams, ActivityIdParam, AvailabilityParams, AppointmentParams,
+    CheckInHistoryParams, GetLeadsByIdsParams, GetOpportunitiesByLeadFieldParams,
+    IsOpportunityEnabledParams, LeadDistributionParams, LeadEmailParam, LeadIdParam,
+    LeadListMembershipsParam, LeadOwnerParams, LeadPhoneParam, LeadsNoActiveTasksParams,
+    LeadsNotContactedParams, LeadsPendingTasksParams, ListIdParam, OpportunityIdParam,
+    OpportunityMetadataParams, QuickSearchLeadsParams, RecentlyModifiedActivitiesParams,
+    RecentlyModifiedLeadsParams, SearchLeadsParams, SearchOpportunitiesParams,
+    SearchUsersParams, SalesActivitiesByLeadParams, TasksByLeadParams, TasksByOwnerParams,
+    UserHierarchyParams, UserIdParam,
+};
 use crate::tools::activities;
 use crate::tools::analytics;
 use crate::tools::instructions;
@@ -219,6 +229,50 @@ impl LsqMcpServer {
     }
 
     #[tool(
+        description = "Full-text quick search for leads across name, email, phone, company, city and country. Returns matching leads. Use for fuzzy/partial lookups when you don't know the exact field to filter on.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn quick_search_leads(&self, Parameters(params): Parameters<QuickSearchLeadsParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = leads::quick_search_leads(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Fetch multiple leads at once by a list of ProspectIDs. More efficient than calling get_lead_by_id in a loop. Pass up to 10,000 IDs.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_leads_by_ids(&self, Parameters(params): Parameters<GetLeadsByIdsParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = leads::get_leads_by_ids(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get the assigned owner (sales rep) of a lead. Look up by any unique field — e.g. lead_identifier='EmailAddress', value='john@example.com'.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_lead_owner(&self, Parameters(params): Parameters<LeadOwnerParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = leads::get_lead_owner(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get leads modified between two UTC timestamps. Useful for syncing or reviewing recent changes. Dates must be UTC YYYY-MM-DD HH:MM:SS.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_recently_modified_leads(&self, Parameters(params): Parameters<RecentlyModifiedLeadsParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = leads::get_recently_modified_leads(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
         description = "Get the full activity history for a lead — every interaction logged in LSQ. Returns all activity types mixed together; filter by activity type name if needed.",
         annotations(read_only_hint = true, destructive_hint = false)
     )]
@@ -274,13 +328,46 @@ impl LsqMcpServer {
     }
 
     #[tool(
-        description = "Search opportunities with filter conditions. Returns paginated results with has_more. Use get_opportunity_metadata to discover valid filter field names.",
+        description = "Search opportunities with advanced filters. Provide opportunity_type_code (from get_opportunity_types) and optional advanced_search JSON. Returns paginated results.",
         annotations(read_only_hint = true, destructive_hint = false)
     )]
     async fn search_opportunities(&self, Parameters(params): Parameters<SearchOpportunitiesParams>) -> Result<CallToolResult, ErrorData> {
         if let Err(e) = self.ensure_client().await { return Ok(e); }
         let guard = self.get_client().await;
         let result = opportunities::search_opportunities(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Check whether the Opportunity Management feature is enabled on an LSQ account. Requires the organisation ID from the LSQ portal.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn is_opportunity_enabled(&self, Parameters(params): Parameters<IsOpportunityEnabledParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = opportunities::is_opportunity_enabled(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get opportunities for leads matching a unique field value (e.g. Mobile, EmailAddress). Useful when you know a lead's phone/email but not their ProspectID.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_opportunities_by_lead_field(&self, Parameters(params): Parameters<GetOpportunitiesByLeadFieldParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = opportunities::get_opportunities_by_lead_field(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get activities logged on an opportunity by its ID. Note: path is unconfirmed — if this returns a 404, report it so the endpoint can be corrected.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_activities_of_opportunity(&self, Parameters(params): Parameters<OpportunityIdParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = opportunities::get_activities_of_opportunity(guard.as_ref().unwrap(), &params).await;
         check_auth(self, result).await
     }
 
@@ -303,6 +390,50 @@ impl LsqMcpServer {
         if let Err(e) = self.ensure_client().await { return Ok(e); }
         let guard = self.get_client().await;
         let result = activities::get_activities_by_lead(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get full details of a single activity record by its activity ID — includes all field values and metadata.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_activity_details(&self, Parameters(params): Parameters<ActivityIdParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = activities::get_activity_details(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get the owner (assigned user) of a specific activity. Note: path is unconfirmed — if this returns a 404, report it so the endpoint can be corrected.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_activity_owner(&self, Parameters(params): Parameters<ActivityIdParam>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = activities::get_activity_owner(guard.as_ref().unwrap(), &params).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get custom activity type settings and schema for this LSQ account. Note: path is unconfirmed — if this returns a 404, report it so the endpoint can be corrected.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_activity_settings(&self) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = activities::get_activity_settings(guard.as_ref().unwrap()).await;
+        check_auth(self, result).await
+    }
+
+    #[tool(
+        description = "Get activities modified between two UTC timestamps. Dates must be UTC YYYY-MM-DD HH:MM:SS. Note: path is unconfirmed — if this returns a 404, report it so the endpoint can be corrected.",
+        annotations(read_only_hint = true, destructive_hint = false)
+    )]
+    async fn get_recently_modified_activities(&self, Parameters(params): Parameters<RecentlyModifiedActivitiesParams>) -> Result<CallToolResult, ErrorData> {
+        if let Err(e) = self.ensure_client().await { return Ok(e); }
+        let guard = self.get_client().await;
+        let result = activities::get_recently_modified_activities(guard.as_ref().unwrap(), &params).await;
         check_auth(self, result).await
     }
 

@@ -57,6 +57,50 @@ pub struct LeadPhoneParam {
     pub phone: String,
 }
 
+/// Bulk-fetch leads by a list of ProspectIDs.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct GetLeadsByIdsParams {
+    /// List of ProspectID GUIDs to fetch (max 10,000).
+    pub lead_ids: Vec<String>,
+    /// Comma-separated field names to include. Leave blank for all fields.
+    pub columns: Option<String>,
+    /// Page number (1-based). Default: 1.
+    pub page: Option<u32>,
+    /// Results per page. Default: 25. Maximum: 1000.
+    pub page_size: Option<u32>,
+}
+
+/// Full-text quick search across name, email, phone, company, city, country.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct QuickSearchLeadsParams {
+    /// Search term (searches FirstName, LastName, EmailAddress, Phone, Mobile, Company, City, Country).
+    pub key: String,
+}
+
+/// Get the owner of a lead by looking up via any unique lead field.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct LeadOwnerParams {
+    /// Lead field name to search on (e.g. "EmailAddress", "LeadId", "Phone").
+    pub lead_identifier: String,
+    /// Value of the field.
+    pub value: String,
+}
+
+/// Get leads modified within a date range.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RecentlyModifiedLeadsParams {
+    /// Start of modification window (UTC, YYYY-MM-DD HH:MM:SS).
+    pub from_date: String,
+    /// End of modification window (UTC, YYYY-MM-DD HH:MM:SS).
+    pub to_date: String,
+    /// Comma-separated field names to return. Leave blank for all fields.
+    pub columns: Option<String>,
+    /// Page number (1-based). Default: 1.
+    pub page: Option<u32>,
+    /// Results per page. Default: 100. Maximum: 1000.
+    pub page_size: Option<u32>,
+}
+
 // ── Opportunity params ────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -73,15 +117,60 @@ pub struct OpportunityMetadataParams {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct SearchOpportunitiesParams {
-    /// JSON array of filter conditions on opportunity fields.
-    pub filters: Option<serde_json::Value>,
+    /// Opportunity type event code from get_opportunity_types (e.g. 12005).
+    pub opportunity_type_code: Option<i64>,
+    /// Filter conditions as JSON. Format: {"GrpConOp":"And","Conditions":[{"Attribute":"FieldName","Operator":"eq","Value":"..."}]}
+    pub advanced_search: Option<serde_json::Value>,
     /// Page number (1-based). Default: 1.
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 100.
     pub page_size: Option<u32>,
 }
 
+/// Get opportunities by matching a unique lead field value.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct GetOpportunitiesByLeadFieldParams {
+    /// Lead field name to search on (e.g. "Mobile", "EmailAddress").
+    pub lookup_name: String,
+    /// Value to match.
+    pub lookup_value: String,
+    /// SQL operator: =, LIKE, >, <, <=, >=, <>. Default: =
+    pub operator: Option<String>,
+    /// Comma-separated field names to include in response.
+    pub columns: Option<String>,
+    /// Page number (1-based). Default: 1.
+    pub page: Option<u32>,
+    /// Results per page. Default: 25. Maximum: 100.
+    pub page_size: Option<u32>,
+}
+
+/// Check whether the Opportunity feature is enabled for an organisation.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct IsOpportunityEnabledParams {
+    /// Organisation ID from your LSQ account.
+    pub org_id: String,
+}
+
 // ── Activity params ───────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ActivityIdParam {
+    /// The LeadSquared Activity ID (GUID).
+    pub activity_id: String,
+}
+
+/// Get activities modified within a date range (unconfirmed path — verify if endpoint returns 404).
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RecentlyModifiedActivitiesParams {
+    /// Start of modification window (UTC, YYYY-MM-DD HH:MM:SS).
+    pub from_date: String,
+    /// End of modification window (UTC, YYYY-MM-DD HH:MM:SS).
+    pub to_date: String,
+    /// Page number (1-based). Default: 1.
+    pub page: Option<u32>,
+    /// Results per page. Default: 25.
+    pub page_size: Option<u32>,
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ActivitiesByLeadParams {

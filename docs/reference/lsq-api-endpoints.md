@@ -22,7 +22,10 @@ Auth: **all** endpoints use `?accessKey=&secretKey=` query params. No headers re
 |---|---|---|---|
 | `src/client.rs` (cached) | GET | `/LeadManagement.svc/LeadsMetaData.Get` | Returns all field schema for leads. Cached per session. |
 | `src/tools/leads.rs` | POST | `/LeadManagement.svc/Leads.Get` | Search leads. Body: `{ Parameter: { LookupName, LookupValue, SqlOperator }, Paging: { PageIndex (1-based), PageSize } }`. Empty `Parameter: {}` returns all leads. Response: direct array of lead objects (no wrapper). SqlOperator: `=`, `LIKE`, `>`, `<`, `<=`, `>=`, `<>`. |
-| `src/tools/leads.rs` | GET | `/LeadManagement.svc/Leads.GetByQuickSearch?key={term}` | Full-text search across name, email, phone, company, city, country. Returns array of leads. |
+| `src/tools/leads.rs` | GET | `/LeadManagement.svc/Leads.GetByQuickSearch?key={term}` | Full-text search across name, email, phone, company, city, country. Returns array. |
+| `src/tools/leads.rs` | POST | `/LeadManagement.svc/Leads/Retrieve/ByIds` | Bulk fetch by ProspectID list. Body: `{ SearchParameters: { LeadIds: [...] }, Columns: { Include_CSV }, Paging: { PageIndex (1-based), PageSize } }`. Response: `{ RecordCount, Leads: [...] }`. |
+| `src/tools/leads.rs` | GET | `/LeadManagement.svc/LeadOwner.Get?LeadIdentifier={field}&value={val}` | Get owner details of a lead. LeadIdentifier is the field name (e.g. EmailAddress, LeadId). Response: array of user objects. |
+| `src/tools/leads.rs` | POST | `/LeadManagement.svc/Leads.RecentlyModified` | Leads modified in a date range. Body: `{ Parameter: { FromDate, ToDate }, Columns: { Include_CSV }, Paging: { PageIndex (1-based), PageSize } }`. Response: `{ RecordCount, Leads: [{ LeadPropertyList: [...] }] }`. |
 | `src/tools/leads.rs` | GET | `/LeadManagement.svc/Leads.GetById?id={leadId}` | Fetch single lead by ProspectID. |
 | `src/tools/leads.rs` | GET | `/LeadManagement.svc/Leads.GetByEmailaddress?emailaddress={email}` | Lookup lead by email. |
 | `src/tools/leads.rs` | GET | `/LeadManagement.svc/RetrieveLeadByPhoneNumber?phone={phone}` | Lookup lead by phone. |
@@ -39,7 +42,10 @@ Auth: **all** endpoints use `?accessKey=&secretKey=` query params. No headers re
 | `src/tools/opportunities.rs` | GET | `/OpportunityManagement.svc/GetOpportunityTypeMetadata?code={typeId}` | Field schema for a specific opportunity type. |
 | `src/tools/opportunities.rs` | GET | `/OpportunityManagement.svc/GetOpportunityDetails?OpportunityId={id}` | Fetch single opportunity by ID. |
 | `src/tools/opportunities.rs` | POST | `/OpportunityManagement.svc/GetOpportunitiesOfLead?leadId={leadId}` | All opportunities for a lead. Body: `{}` (empty triggers all types). |
-| `src/tools/opportunities.rs` | POST | `/OpportunityManagement.svc/Retrieve/BySearchParameter` | Search opportunities. Body: `{ Filters: [...], Paging: { PageIndex, PageSize } }`. Admin only. |
+| `src/tools/opportunities.rs` | GET | `/OpportunityManagement.svc/IsOpportunityEnabled?orgId={id}` | Check if opportunity feature is enabled. Response: `{ OpportunityManagement: "Enabled" }`. |
+| `src/tools/opportunities.rs` | POST | `/OpportunityManagement.svc/GetOpportunitiesByUniqueLeadField` | Opportunities for leads matching a unique field. Body: `{ Parameter: { LookupName, LookupValue, SqlOperator }, Columns: { Include_CSV }, Paging }`. |
+| `src/tools/opportunities.rs` | POST | `/OpportunityManagement.svc/Retrieve/BySearchParameter` | Search opportunities. Body: `{ OpportunityEventCode, AdvancedSearch: "<stringified JSON>", Paging: { PageIndex (1-based), PageSize } }`. Response: `{ RecordCount, List: [...] }`. Admin only. |
+| `src/tools/opportunities.rs` | GET | `/OpportunityManagement.svc/GetActivitiesOfOpportunity?opportunityId={id}` | Activities logged on an opportunity. **Path unconfirmed** — update if wrong. |
 
 ---
 
@@ -49,6 +55,10 @@ Auth: **all** endpoints use `?accessKey=&secretKey=` query params. No headers re
 |---|---|---|---|
 | `src/client.rs` (cached) | GET | `/ProspectActivity.svc/ActivityTypes.Get` | Returns all activity type definitions. Cached per session. |
 | `src/tools/activities.rs` | POST | `/ProspectActivity.svc/Retrieve?leadId={leadId}` | Paginated activity log for a lead. Body: `{ Paging: { PageIndex, PageSize } }`. Max 25/page (LSQ cap). |
+| `src/tools/activities.rs` | GET | `/ProspectActivity.svc/GetActivityDetails?activityId={id}` | Full details of a single activity including all field values. |
+| `src/tools/activities.rs` | GET | `/ProspectActivity.svc/ActivityOwner.Get?activityId={id}` | Owner of an activity. **Path unconfirmed** — update if wrong. |
+| `src/tools/activities.rs` | GET | `/ProspectActivity.svc/CustomActivity/GetActivitySetting` | Custom activity type settings/schema. **Path unconfirmed** — update if wrong. |
+| `src/tools/activities.rs` | POST | `/ProspectActivity.svc/RetrieveRecentlyModified` | Activities modified in a date range. Body: `{ Parameter: { FromDate, ToDate }, Paging }`. **Path unconfirmed** — update if wrong. |
 
 ---
 
@@ -124,6 +134,10 @@ These paths were not found in the official LSQ API docs. Best-effort guesses —
 | `/Task.svc/RetrieveToDos` | `src/tools/tasks.rs` | Unconfirmed |
 | `/List.svc/GetByLeadId` | `src/tools/lists.rs` | Unconfirmed |
 | `/List.svc/GetLeadCount` | `src/tools/lists.rs` | Unconfirmed |
+| `/OpportunityManagement.svc/GetActivitiesOfOpportunity` | `src/tools/opportunities.rs` | Unconfirmed |
+| `/ProspectActivity.svc/ActivityOwner.Get` | `src/tools/activities.rs` | Unconfirmed |
+| `/ProspectActivity.svc/CustomActivity/GetActivitySetting` | `src/tools/activities.rs` | Unconfirmed |
+| `/ProspectActivity.svc/RetrieveRecentlyModified` | `src/tools/activities.rs` | Unconfirmed |
 
 ---
 
