@@ -14,15 +14,25 @@ pub fn analytics_base(host: &str) -> String {
     format!("https://{}", host)
 }
 
+/// Resolve the ~/.lsq-mcp directory (or LSQ_MCP_HOME override).
+fn lsq_home() -> Result<PathBuf, LsqError> {
+    match std::env::var("LSQ_MCP_HOME") {
+        Ok(dir) => Ok(PathBuf::from(dir)),
+        Err(_) => dirs::home_dir()
+            .ok_or_else(|| LsqError::Auth("Could not determine home directory".into()))
+            .map(|h| h.join(".lsq-mcp")),
+    }
+}
+
 /// Path to the credentials file, honouring LSQ_MCP_HOME override.
 pub fn credentials_path() -> Result<PathBuf, LsqError> {
-    let dir = match std::env::var("LSQ_MCP_HOME") {
-        Ok(dir) => PathBuf::from(dir),
-        Err(_) => dirs::home_dir()
-            .ok_or_else(|| LsqError::Auth("Could not determine home directory".into()))?
-            .join(".lsq-mcp"),
-    };
-    Ok(dir.join("credentials.json"))
+    Ok(lsq_home()?.join("credentials.json"))
+}
+
+/// Directory for large-output files written by lsq-mcp tools.
+/// Created on first use. Respects LSQ_MCP_HOME override.
+pub fn output_dir() -> Result<PathBuf, LsqError> {
+    Ok(lsq_home()?.join("output"))
 }
 
 #[cfg(test)]
@@ -41,7 +51,8 @@ mod tests {
 
     #[test]
     fn credentials_path_uses_lsq_mcp_home_when_set() {
-        // SAFETY: single-threaded test binary, no concurrent env access
+        let _guard = crate::ENV_MUTEX.lock().unwrap();
+        // SAFETY: ENV_MUTEX serialises all env-var-touching tests across modules.
         unsafe { std::env::set_var("LSQ_MCP_HOME", "/tmp/test-lsq"); }
         let path = credentials_path().unwrap();
         assert_eq!(path, std::path::PathBuf::from("/tmp/test-lsq/credentials.json"));

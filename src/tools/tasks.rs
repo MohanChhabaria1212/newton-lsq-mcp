@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 
 use crate::client::LsqClient;
 use crate::models::{AppointmentParams, TasksByLeadParams, TasksByOwnerParams};
-use crate::server::{api_error, success_json};
+use crate::server::{api_error, success_json, success_json_opt};
 
 pub async fn get_task_types(client: &LsqClient) -> Result<CallToolResult, ErrorData> {
     let data = client
@@ -28,7 +28,7 @@ pub async fn get_tasks_by_lead(
         ))
         .await
         .map_err(|e| api_error("Failed to fetch tasks by lead", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
 
 pub async fn get_tasks_by_owner(
@@ -47,7 +47,7 @@ pub async fn get_tasks_by_owner(
         .post("/Task.svc/Retrieve", &body)
         .await
         .map_err(|e| api_error("Failed to fetch tasks by owner", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
 
 pub async fn get_appointments(
@@ -69,7 +69,7 @@ pub async fn get_appointments(
         .get(&format!("/Task.svc/RetrieveAppointments?{}", query))
         .await
         .map_err(|e| api_error("Failed to fetch appointments", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
 
 pub async fn get_todos(
@@ -91,5 +91,5 @@ pub async fn get_todos(
         .get(&format!("/Task.svc/RetrieveToDos?{}", query))
         .await
         .map_err(|e| api_error("Failed to fetch todos", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }

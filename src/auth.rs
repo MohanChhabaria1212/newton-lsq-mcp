@@ -77,11 +77,6 @@ pub fn mask_key(key: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    // Serialise all tests that mutate LSQ_MCP_HOME to avoid race conditions
-    // with other tests in the same binary that also touch that env var.
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn mask_key_shows_first_four() {
@@ -95,8 +90,8 @@ mod tests {
 
     #[test]
     fn save_and_load_roundtrip() {
-        let _guard = ENV_LOCK.lock().unwrap();
-        // SAFETY: single-threaded test binary, no concurrent env access
+        let _guard = crate::ENV_MUTEX.lock().unwrap();
+        // SAFETY: ENV_MUTEX serialises all env-var-touching tests across modules.
         unsafe { std::env::set_var("LSQ_MCP_HOME", "/tmp/lsq-mcp-test-auth"); }
         let creds = Credentials {
             access_key: "test_access".into(),
@@ -116,8 +111,8 @@ mod tests {
 
     #[test]
     fn load_returns_none_when_no_file() {
-        let _guard = ENV_LOCK.lock().unwrap();
-        // SAFETY: single-threaded test binary, no concurrent env access
+        let _guard = crate::ENV_MUTEX.lock().unwrap();
+        // SAFETY: ENV_MUTEX serialises all env-var-touching tests across modules.
         unsafe { std::env::set_var("LSQ_MCP_HOME", "/tmp/lsq-mcp-test-nofile"); }
         let result = load_credentials().unwrap();
         assert!(result.is_none());

@@ -3,8 +3,8 @@ use rmcp::ErrorData;
 use serde_json::Value;
 
 use crate::client::LsqClient;
-use crate::models::{LeadListMembershipsParam, ListIdParam};
-use crate::server::{api_error, success_json};
+use crate::models::{GetLeadsInListParams, LeadListMembershipsParam, ListIdParam};
+use crate::server::{api_error, success_json, success_json_opt};
 
 pub async fn get_lists(client: &LsqClient) -> Result<CallToolResult, ErrorData> {
     let data: Value = client
@@ -16,7 +16,7 @@ pub async fn get_lists(client: &LsqClient) -> Result<CallToolResult, ErrorData> 
 
 pub async fn get_leads_in_list(
     client: &LsqClient,
-    params: &ListIdParam,
+    params: &GetLeadsInListParams,
 ) -> Result<CallToolResult, ErrorData> {
     let page_index = params.page.unwrap_or(1).saturating_sub(1);
     let page_size = params.page_size.unwrap_or(25).min(100);
@@ -28,7 +28,7 @@ pub async fn get_leads_in_list(
         ))
         .await
         .map_err(|e| api_error("Failed to fetch leads in list", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
 
 pub async fn get_lead_list_memberships(

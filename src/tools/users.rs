@@ -4,16 +4,20 @@ use serde_json::{json, Value};
 
 use crate::client::LsqClient;
 use crate::models::{
-    AvailabilityParams, CheckInHistoryParams, SearchUsersParams, UserHierarchyParams, UserIdParam,
+    AvailabilityParams, CheckInHistoryParams, GetUsersParams, SearchUsersParams,
+    UserHierarchyParams, UserIdParam,
 };
-use crate::server::{api_error, success_json};
+use crate::server::{api_error, success_json, success_json_opt};
 
-pub async fn get_users(client: &LsqClient) -> Result<CallToolResult, ErrorData> {
+pub async fn get_users(
+    client: &LsqClient,
+    params: &GetUsersParams,
+) -> Result<CallToolResult, ErrorData> {
     let data: Value = client
         .get("/UserManagement.svc/Users.Get")
         .await
         .map_err(|e| api_error("Failed to fetch users", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
 
 pub async fn get_user_by_id(
@@ -50,7 +54,7 @@ pub async fn search_users(
         .post("/UserManagement.svc/User/AdvancedSearch", &body)
         .await
         .map_err(|e| api_error("Failed to search users", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
 
 pub async fn get_user_hierarchy(

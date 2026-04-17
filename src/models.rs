@@ -37,6 +37,9 @@ pub struct SearchLeadsParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 1000.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/leads.json").
+    /// Large responses are written to ~/.lsq-mcp/output/ automatically even without this.
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -68,6 +71,8 @@ pub struct GetLeadsByIdsParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 1000.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/leads.json").
+    pub output_file: Option<String>,
 }
 
 /// Full-text quick search across name, email, phone, company, city, country.
@@ -75,6 +80,8 @@ pub struct GetLeadsByIdsParams {
 pub struct QuickSearchLeadsParams {
     /// Search term (searches FirstName, LastName, EmailAddress, Phone, Mobile, Company, City, Country).
     pub key: String,
+    /// Optional file path to write results to (e.g. "/tmp/results.json").
+    pub output_file: Option<String>,
 }
 
 /// Get the owner of a lead by looking up via any unique lead field.
@@ -99,6 +106,8 @@ pub struct RecentlyModifiedLeadsParams {
     pub page: Option<u32>,
     /// Results per page. Default: 100. Maximum: 1000.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/modified_leads.json").
+    pub output_file: Option<String>,
 }
 
 // ── Opportunity params ────────────────────────────────────────────────────
@@ -125,6 +134,8 @@ pub struct SearchOpportunitiesParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 100.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/opportunities.json").
+    pub output_file: Option<String>,
 }
 
 /// Get opportunities by matching a unique lead field value.
@@ -142,6 +153,8 @@ pub struct GetOpportunitiesByLeadFieldParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 100.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/opportunities.json").
+    pub output_file: Option<String>,
 }
 
 /// Check whether the Opportunity feature is enabled for an organisation.
@@ -170,6 +183,8 @@ pub struct RecentlyModifiedActivitiesParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/activities.json").
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -180,6 +195,8 @@ pub struct ActivitiesByLeadParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 100.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/activities.json").
+    pub output_file: Option<String>,
 }
 
 // ── Sales activity params ─────────────────────────────────────────────────
@@ -192,6 +209,8 @@ pub struct SalesActivitiesByLeadParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 100.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/sales.json").
+    pub output_file: Option<String>,
 }
 
 // ── Task params ───────────────────────────────────────────────────────────
@@ -210,6 +229,8 @@ pub struct TasksByLeadParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 100.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/tasks.json").
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -220,6 +241,8 @@ pub struct TasksByOwnerParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 100.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/tasks.json").
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -232,6 +255,8 @@ pub struct AppointmentParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 100.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/appointments.json").
+    pub output_file: Option<String>,
 }
 
 // ── User params ───────────────────────────────────────────────────────────
@@ -250,6 +275,8 @@ pub struct SearchUsersParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 100.
     pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/users.json").
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -276,6 +303,13 @@ pub struct AvailabilityParams {
     pub email: Option<String>,
 }
 
+/// Parameters for get_users (no required fields, only optional output_file).
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct GetUsersParams {
+    /// Optional file path to write results to (e.g. "/tmp/users.json").
+    pub output_file: Option<String>,
+}
+
 // ── List params ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -286,6 +320,19 @@ pub struct ListIdParam {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 100.
     pub page_size: Option<u32>,
+}
+
+/// Parameters for get_leads_in_list (includes output_file support).
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct GetLeadsInListParams {
+    /// The LeadSquared List ID.
+    pub list_id: String,
+    /// Page number (1-based). Default: 1.
+    pub page: Option<u32>,
+    /// Results per page. Default: 25. Maximum: 100.
+    pub page_size: Option<u32>,
+    /// Optional file path to write results to (e.g. "/tmp/list_leads.json").
+    pub output_file: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

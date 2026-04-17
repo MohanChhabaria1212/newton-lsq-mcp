@@ -11,7 +11,8 @@ use crate::client::LsqClient;
 use crate::error::{LsqError, lsq_error};
 use crate::models::{
     ActivitiesByLeadParams, ActivityIdParam, AvailabilityParams, AppointmentParams,
-    CheckInHistoryParams, GetLeadsByIdsParams, GetOpportunitiesByLeadFieldParams,
+    CheckInHistoryParams, GetLeadsByIdsParams, GetLeadsInListParams,
+    GetOpportunitiesByLeadFieldParams, GetUsersParams,
     IsOpportunityEnabledParams, LeadDistributionParams, LeadEmailParam, LeadIdParam,
     LeadListMembershipsParam, LeadOwnerParams, LeadPhoneParam, LeadsNoActiveTasksParams,
     LeadsNotContactedParams, LeadsPendingTasksParams, ListIdParam, OpportunityIdParam,
@@ -81,10 +82,79 @@ impl LsqMcpServer {
 
 // ── Shared response helpers ───────────────────────────────────────────────
 
-pub fn success_json(value: &serde_json::Value) -> Result<CallToolResult, ErrorData> {
+/// Responses larger than this are written to a file automatically.
+const AUTO_THRESHOLD_BYTES: usize = 100_000; // 100 KB
+
+/// Return data inline, or write to `output_file` (explicit) / auto temp file (threshold).
+/// All tool functions that return lists should use this instead of `success_json`.
+pub fn success_json_opt(
+    value: &serde_json::Value,
+    output_file: Option<&str>,
+) -> Result<CallToolResult, ErrorData> {
     let text = serde_json::to_string_pretty(value)
         .map_err(|e| ErrorData::internal_error(format!("JSON serialisation error: {}", e), None))?;
-    Ok(CallToolResult::success(vec![Content::text(text)]))
+
+    let target: Option<std::path::PathBuf> = if let Some(path) = output_file {
+        Some(std::path::PathBuf::from(path))
+    } else if text.len() > AUTO_THRESHOLD_BYTES {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        match crate::config::output_dir() {
+            Ok(dir) => Some(dir.join(format!("lsq-{}.json", ts))),
+            Err(_) => None, // fall back to inline if dir resolution fails
+        }
+    } else {
+        None
+    };
+
+    if let Some(path) = target {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                ErrorData::internal_error(format!("Could not create output dir: {}", e), None)
+            })?;
+        }
+        std::fs::write(&path, &text).map_err(|e| {
+            ErrorData::internal_error(
+                format!("Could not write output file '{}': {}", path.display(), e),
+                None,
+            )
+        })?;
+        let count = count_records(value);
+        let summary = serde_json::to_string_pretty(&serde_json::json!({
+            "file": path.to_string_lossy(),
+            "size_bytes": text.len(),
+            "record_count": count,
+            "note": "Response was large — full data written to file. Read the file to access results."
+        })).unwrap_or_default();
+        Ok(CallToolResult::success(vec![Content::text(summary)]))
+    } else {
+        Ok(CallToolResult::success(vec![Content::text(text)]))
+    }
+}
+
+/// Convenience wrapper — auto-threshold enabled, no explicit output path.
+pub fn success_json(value: &serde_json::Value) -> Result<CallToolResult, ErrorData> {
+    success_json_opt(value, None)
+}
+
+/// Attempt to count records in common LSQ response shapes.
+fn count_records(value: &serde_json::Value) -> usize {
+    if let Some(arr) = value.as_array() {
+        return arr.len();
+    }
+    for key in ["count", "record_count"] {
+        if let Some(n) = value.get(key).and_then(|v| v.as_u64()) {
+            return n as usize;
+        }
+    }
+    for key in ["results", "Leads", "List", "Records", "data"] {
+        if let Some(arr) = value.get(key).and_then(|v| v.as_array()) {
+            return arr.len();
+        }
+    }
+    0
 }
 
 pub fn api_error(context: &str, e: LsqError) -> ErrorData {
@@ -529,10 +599,10 @@ impl LsqMcpServer {
         description = "Get all users in the LSQ account. Returns up to 200 users. Use search_users for accounts with more users or to filter by specific attributes.",
         annotations(read_only_hint = true, destructive_hint = false)
     )]
-    async fn get_users(&self) -> Result<CallToolResult, ErrorData> {
+    async fn get_users(&self, Parameters(params): Parameters<GetUsersParams>) -> Result<CallToolResult, ErrorData> {
         if let Err(e) = self.ensure_client().await { return Ok(e); }
         let guard = self.get_client().await;
-        let result = users::get_users(guard.as_ref().unwrap()).await;
+        let result = users::get_users(guard.as_ref().unwrap(), &params).await;
         check_auth(self, result).await
     }
 
@@ -606,7 +676,7 @@ impl LsqMcpServer {
         description = "Get paginated leads in a specific list. Use get_lists first to find the list ID.",
         annotations(read_only_hint = true, destructive_hint = false)
     )]
-    async fn get_leads_in_list(&self, Parameters(params): Parameters<ListIdParam>) -> Result<CallToolResult, ErrorData> {
+    async fn get_leads_in_list(&self, Parameters(params): Parameters<GetLeadsInListParams>) -> Result<CallToolResult, ErrorData> {
         if let Err(e) = self.ensure_client().await { return Ok(e); }
         let guard = self.get_client().await;
         let result = lists::get_leads_in_list(guard.as_ref().unwrap(), &params).await;

@@ -7,7 +7,7 @@ use crate::models::{
     GetOpportunitiesByLeadFieldParams, IsOpportunityEnabledParams, LeadIdParam, OpportunityIdParam,
     OpportunityMetadataParams, SearchOpportunitiesParams,
 };
-use crate::server::{api_error, success_json};
+use crate::server::{api_error, success_json, success_json_opt};
 
 pub async fn get_opportunity_types(client: &LsqClient) -> Result<CallToolResult, ErrorData> {
     let data = client
@@ -94,13 +94,13 @@ pub async fn search_opportunities(
     let count = results.as_array().map(|a| a.len() as i64).unwrap_or(0);
     let has_more = (page_index as i64 - 1) * page_size as i64 + count < total;
 
-    success_json(&json!({
+    success_json_opt(&json!({
         "results": results,
         "total_count": total,
         "page": page_index,
         "page_size": page_size,
         "has_more": has_more
-    }))
+    }), params.output_file.as_deref())
 }
 
 /// Check whether the Opportunity feature is enabled for an organisation.
@@ -142,7 +142,7 @@ pub async fn get_opportunities_by_lead_field(
         .post("/OpportunityManagement.svc/GetOpportunitiesByUniqueLeadField", &body)
         .await
         .map_err(|e| api_error("Failed to fetch opportunities by lead field", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
 
 /// Get activities logged on an opportunity (unconfirmed path — update if 404).

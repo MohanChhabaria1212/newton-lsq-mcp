@@ -7,7 +7,7 @@ use crate::models::{
     GetLeadsByIdsParams, LeadEmailParam, LeadIdParam, LeadOwnerParams, LeadPhoneParam,
     QuickSearchLeadsParams, RecentlyModifiedLeadsParams, SearchLeadsParams,
 };
-use crate::server::{api_error, success_json};
+use crate::server::{api_error, success_json, success_json_opt};
 
 pub async fn get_lead_metadata(client: &LsqClient) -> Result<CallToolResult, ErrorData> {
     let data = client
@@ -56,13 +56,10 @@ pub async fn search_leads(
     // No TotalCount in response; infer has_more from a full page
     let has_more = count == page_size as usize;
 
-    success_json(&json!({
-        "results": results,
-        "count": count,
-        "page": page_index,
-        "page_size": page_size,
-        "has_more": has_more
-    }))
+    success_json_opt(
+        &json!({ "results": results, "count": count, "page": page_index, "page_size": page_size, "has_more": has_more }),
+        params.output_file.as_deref(),
+    )
 }
 
 pub async fn get_lead_by_id(
@@ -151,7 +148,7 @@ pub async fn quick_search_leads(
         )
         .await
         .map_err(|e| api_error("Failed to quick-search leads", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
 
 /// Bulk-fetch leads by a list of ProspectIDs.
@@ -173,7 +170,7 @@ pub async fn get_leads_by_ids(
         .post("/LeadManagement.svc/Leads/Retrieve/ByIds", &body)
         .await
         .map_err(|e| api_error("Failed to fetch leads by IDs", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
 
 /// Get the owner of a lead by any unique field (e.g. EmailAddress, LeadId, Phone).
@@ -216,7 +213,7 @@ pub async fn get_recently_modified_leads(
         .post("/LeadManagement.svc/Leads.RecentlyModified", &body)
         .await
         .map_err(|e| api_error("Failed to fetch recently modified leads", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
 
 // ── Build helpers (unit-testable) ─────────────────────────────────────────

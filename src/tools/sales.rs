@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use crate::client::LsqClient;
 use crate::models::SalesActivitiesByLeadParams;
-use crate::server::{api_error, success_json};
+use crate::server::{api_error, success_json, success_json_opt};
 
 pub async fn get_products(client: &LsqClient) -> Result<CallToolResult, ErrorData> {
     let data = client
@@ -36,5 +36,5 @@ pub async fn get_sales_activities_by_lead(
         ))
         .await
         .map_err(|e| api_error("Failed to fetch sales activities by lead", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }

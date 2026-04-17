@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 
 use crate::client::LsqClient;
 use crate::models::{ActivitiesByLeadParams, ActivityIdParam, RecentlyModifiedActivitiesParams};
-use crate::server::{api_error, success_json};
+use crate::server::{api_error, success_json, success_json_opt};
 
 pub async fn get_activity_types(client: &LsqClient) -> Result<CallToolResult, ErrorData> {
     let data = client
@@ -35,7 +35,7 @@ pub async fn get_activities_by_lead(
         )
         .await
         .map_err(|e| api_error("Failed to fetch activities by lead", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
 
 /// Get full details of a single activity by its ID.
@@ -97,5 +97,5 @@ pub async fn get_recently_modified_activities(
         .post("/ProspectActivity.svc/RetrieveRecentlyModified", &body)
         .await
         .map_err(|e| api_error("Failed to fetch recently modified activities", e))?;
-    success_json(&data)
+    success_json_opt(&data, params.output_file.as_deref())
 }
