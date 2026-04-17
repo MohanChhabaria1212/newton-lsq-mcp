@@ -88,7 +88,8 @@ impl LsqClient {
                         .and_then(|v| v.to_str().ok())
                         .and_then(|s| s.parse::<u64>().ok())
                         .unwrap_or(delay_secs);
-                    tracing::debug!("429 rate limit on {}, waiting {}s (attempt {})", url, wait, attempt + 1);
+                    // Do NOT log `url` here — it contains the access/secret keys as query params.
+                    tracing::debug!("429 rate limit, backing off {}s (attempt {})", wait, attempt + 1);
                     tokio::time::sleep(Duration::from_secs(wait)).await;
                     delay_secs *= 2;
                     continue;
@@ -177,7 +178,8 @@ impl LsqClient {
                         .and_then(|v| v.to_str().ok())
                         .and_then(|s| s.parse::<u64>().ok())
                         .unwrap_or(delay_secs);
-                    tracing::debug!("429 rate limit on {}, waiting {}s", url, wait);
+                    // Do NOT log `url` here — it contains the access/secret keys as query params.
+                    tracing::debug!("429 rate limit, backing off {}s", wait);
                     tokio::time::sleep(Duration::from_secs(wait)).await;
                     delay_secs *= 2;
                     continue;

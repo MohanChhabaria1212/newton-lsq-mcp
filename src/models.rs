@@ -37,8 +37,8 @@ pub struct SearchLeadsParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 1000.
     pub page_size: Option<u32>,
-    /// Optional file path to write results to (e.g. "/tmp/leads.json").
-    /// Large responses are written to ~/.lsq-mcp/output/ automatically even without this.
+    /// Output filename for large results (e.g. "leads.json").
+    /// Always written to ~/.lsq-mcp/output/<filename>. Directory components are ignored.
     pub output_file: Option<String>,
 }
 
@@ -71,7 +71,7 @@ pub struct GetLeadsByIdsParams {
     pub page: Option<u32>,
     /// Results per page. Default: 25. Maximum: 1000.
     pub page_size: Option<u32>,
-    /// Optional file path to write results to (e.g. "/tmp/leads.json").
+    /// Output filename for large results (e.g. "leads.json"). Written to ~/.lsq-mcp/output/.
     pub output_file: Option<String>,
 }
 

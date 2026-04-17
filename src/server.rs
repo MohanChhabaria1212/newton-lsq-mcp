@@ -85,6 +85,43 @@ impl LsqMcpServer {
 /// Responses larger than this are written to a file automatically.
 const AUTO_THRESHOLD_BYTES: usize = 100_000; // 100 KB
 
+/// Validate a caller-supplied `output_file` value and resolve it to a safe
+/// path inside `~/.lsq-mcp/output/`.
+///
+/// Security rules enforced:
+/// - Paths containing `..` are rejected outright (path traversal prevention).
+/// - Only the final filename component is used; any directory prefix is stripped.
+///   `/tmp/leads.json` → `~/.lsq-mcp/output/leads.json`
+/// - The resolved path is always inside the designated output directory.
+fn validated_output_path(requested: &str) -> Result<std::path::PathBuf, ErrorData> {
+    // Reject directory traversal immediately — before any other processing.
+    if std::path::Path::new(requested)
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err(ErrorData::internal_error(
+            "output_file rejected: '..' path components are not allowed. \
+             Provide a plain filename such as 'leads.json'.",
+            None,
+        ));
+    }
+
+    let output_dir = crate::config::output_dir().map_err(|e| {
+        ErrorData::internal_error(format!("Cannot resolve output directory: {}", e), None)
+    })?;
+
+    // Take only the filename component; discard any directory prefix.
+    // This means the caller can write '/tmp/leads.json' or 'leads.json' —
+    // both land safely in output_dir/leads.json.
+    let filename = std::path::Path::new(requested)
+        .file_name()
+        .ok_or_else(|| {
+            ErrorData::internal_error("output_file is not a valid filename.", None)
+        })?;
+
+    Ok(output_dir.join(filename))
+}
+
 /// Return data inline, or write to `output_file` (explicit) / auto temp file (threshold).
 /// All tool functions that return lists should use this instead of `success_json`.
 pub fn success_json_opt(
@@ -95,7 +132,7 @@ pub fn success_json_opt(
         .map_err(|e| ErrorData::internal_error(format!("JSON serialisation error: {}", e), None))?;
 
     let target: Option<std::path::PathBuf> = if let Some(path) = output_file {
-        Some(std::path::PathBuf::from(path))
+        Some(validated_output_path(path)?)
     } else if text.len() > AUTO_THRESHOLD_BYTES {
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -121,6 +158,8 @@ pub fn success_json_opt(
                 None,
             )
         })?;
+        // Prune oldest files to prevent unbounded disk growth.
+        crate::config::cleanup_output_dir();
         let count = count_records(value);
         let summary = serde_json::to_string_pretty(&serde_json::json!({
             "file": path.to_string_lossy(),
