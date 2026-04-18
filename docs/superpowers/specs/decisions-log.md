@@ -34,13 +34,25 @@ Running log of every non-obvious decision made during design and implementation.
 
 ---
 
-## 2026-04-14 — HTTP Auth: Headers over Query Params
+## 2026-04-14 — HTTP Auth: Headers over Query Params (design intent)
 
-**Decision:** Send `x-LSQ-AccessKey` and `x-LSQ-SecretKey` as HTTP headers, not query string parameters.
+**Design intent:** Send `x-LSQ-AccessKey` and `x-LSQ-SecretKey` as HTTP headers, not query string parameters.
 
-**Why:** LSQ explicitly recommends headers for security. Headers are not stored in server logs, browser history, or proxy caches. Service CRM endpoints mandate headers — query params would fail for those endpoints.
+**Why headers were preferred in design:** LSQ recommends headers for security. Headers are not stored in server logs or proxy caches. Service CRM endpoints mandate headers.
 
-**Rejected:** Query params — LSQ documents them as an option but recommends against them. Using headers is strictly safer and more compatible.
+> ⚠️ **REVERSED during implementation (2026-04-15) — see entry below.**
+
+---
+
+## 2026-04-15 — HTTP Auth: Switched to Query Params
+
+**Decision:** Reversed the header auth design. The implementation (`src/client.rs`) sends `accessKey` and `secretKey` as URL query parameters on every request.
+
+**Why the switch:** Testing against the live LSQ API revealed that the standard v2 endpoints (`/LeadManagement.svc/...`, `/ProspectActivity.svc/...`, etc.) do not accept `x-LSQ-AccessKey` / `x-LSQ-SecretKey` headers — they only recognise `accessKey`/`secretKey` as query parameters. The header approach would have silently failed against real LSQ accounts.
+
+**Security mitigation:** The URL (which contains the keys as query params) is built once before the retry loop and is **never logged**. All `tracing::debug!` statements in `client.rs` that reference rate-limit retries log only timing information — not the URL. This prevents credential leakage at `RUST_LOG=debug`. See `docs/reference/security.md §5`.
+
+**Rejected alternative kept in reserve:** If LSQ's Service CRM or other modules require header auth in a future v2, a per-request header injection path can be added to `LsqClient` without changing the retry loop.
 
 ---
 
@@ -84,11 +96,13 @@ Running log of every non-obvious decision made during design and implementation.
 
 ---
 
-## 2026-04-14 — Module Scope: Core CRM + Analytics (36 tools)
+## 2026-04-14 — Module Scope: Core CRM + Analytics (36 tools planned)
 
 **Decision:** v1 includes Leads, Opportunities, Activities, Sales Activities, Tasks, Users, Lists, and Analytics (4 endpoints). Telephony, Email Marketing, Landing Pages, Portal API, Service CRM, and Async API are deferred.
 
 **Why:** The included modules cover 100% of CRM data queries for all three user types (sales reps, managers, developers/admins). Excluded modules are either write-only (Async API), separate product lines (Service CRM, Portal API), or have low AI utility (Telephony's 2 endpoints retrieve an SSO key and an owner phone number — not useful in conversation).
+
+> **Updated 2026-04-15:** Final implementation exposed 48 tools, not 36. 12 additional utility tools were added during module implementation — see entry below.
 
 ---
 
@@ -97,3 +111,51 @@ Running log of every non-obvious decision made during design and implementation.
 **Decision:** v1 supports one credential set per machine. Running `lsq-mcp configure` overwrites the current credentials. Named profiles (`--profile`) are deferred to v2.
 
 **Why:** Keeps the configure flow simple for the majority of users who have one LSQ account. Named profiles add complexity (file naming, profile selection flags) that is premature for v1.
+
+---
+
+## 2026-04-15 — Credential Encryption: AES-256-GCM at Rest
+
+**Decision:** Credentials are encrypted on disk using AES-256-GCM. A 32-byte random key is stored at `~/.lsq-mcp/.key` (0o600). The credentials file stores `{v, n, ct}` (version, nonce, ciphertext). A fresh random 96-bit nonce is generated on every write.
+
+**Why:** The original spec stored credentials as plaintext JSON (0o600). During implementation it became clear that plaintext is easily exfiltrated by cloud sync (iCloud, Dropbox) picking up `~/.lsq-mcp/credentials.json`. Encryption at rest mitigates passive exfiltration while keeping the UX identical (no passphrase required).
+
+**Rejected:** Keychain / OS secure enclave — adds platform-specific dependencies and complicates the Linux/Docker use case. The two-file model (key + ciphertext) is sufficient for the threat model since an attacker needs both files.
+
+**v1 → v2 migration:** Plaintext credentials files from pre-encryption installs are silently re-encrypted to v2 on next load. No user action required.
+
+---
+
+## 2026-04-15 — Tool Count Expanded: 36 → 48
+
+**Decision:** 12 additional tools were added during module implementation beyond the original 36 planned:
+
+| Module | Added tools |
+|---|---|
+| Leads | `quick_search_leads`, `get_leads_by_ids`, `get_lead_owner`, `get_recently_modified_leads` |
+| Opportunities | `is_opportunity_enabled`, `get_opportunities_by_lead_field`, `get_activities_of_opportunity` |
+| Activities | `get_activity_details`, `get_activity_owner`, `get_activity_settings`, `get_recently_modified_activities` |
+
+**Why:** These endpoints were discovered in LSQ's API documentation while implementing the planned tools and added incrementally. Each fills a real gap: `quick_search_leads` for identity lookups, `get_recently_modified_*` for sync workflows, `is_opportunity_enabled` for pre-flight checks.
+
+**Note:** Three of the activity endpoints (`get_activity_owner`, `get_activity_settings`, `get_recently_modified_activities`) and `get_activities_of_opportunity` have unconfirmed paths — added as best-effort and flagged in `docs/reference/tools.md`.
+
+---
+
+## 2026-04-15 — Output File Support + Auto-Threshold
+
+**Decision:** All paginated/list tools accept an optional `output_file` parameter. Any tool response exceeding 100 KB is automatically written to `~/.lsq-mcp/output/` regardless of whether `output_file` was specified.
+
+**Why:** LSQ accounts can have thousands of leads. Without file output, large responses either overflow the AI's context window or get truncated. Auto-threshold (100 KB) means the AI never needs to manually manage output for large result sets — it just receives a file path.
+
+**Security:** `output_file` values are validated before any write: `..` components are rejected, and only the filename component is used (directory prefix stripped). The AI cannot write outside `~/.lsq-mcp/output/`. After every write the directory is capped at 100 files (oldest deleted). See `src/server.rs: validated_output_path()` and `src/config.rs: cleanup_output_dir()`.
+
+---
+
+## 2026-04-15 — Integration Tests in src/ Not tests/
+
+**Decision:** Integration tests live in `src/integration_tests.rs` (registered as `#[cfg(test)] mod integration_tests` in `lib.rs`), not in the `tests/` directory.
+
+**Why:** The `tests/` directory compiles the crate in library mode with `#[cfg(test)]` disabled. This means `LsqClient::new_for_testing` (a `#[cfg(test)]`-only constructor) and `pub(crate)` items like `validated_output_path` are inaccessible from `tests/`. Moving tests into `src/` gives them full access to test-only and crate-private items.
+
+**Rejected:** `tests/` with a re-export shim — adds unnecessary complexity and surface area.

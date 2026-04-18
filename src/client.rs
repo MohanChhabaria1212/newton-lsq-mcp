@@ -22,6 +22,12 @@ pub struct LsqClient {
     opportunity_types_cache:  Arc<RwLock<Option<Value>>>,
     task_types_cache:         Arc<RwLock<Option<Value>>>,
     products_cache:           Arc<RwLock<Option<Value>>>,
+    /// Override base URL (v2) for unit/integration tests pointing at a mock server.
+    #[cfg(test)]
+    test_base_url: Option<String>,
+    /// Override analytics base URL for unit/integration tests pointing at a mock server.
+    #[cfg(test)]
+    test_analytics_base_url: Option<String>,
 }
 
 impl LsqClient {
@@ -37,14 +43,26 @@ impl LsqClient {
             opportunity_types_cache: Arc::new(RwLock::new(None)),
             task_types_cache:        Arc::new(RwLock::new(None)),
             products_cache:          Arc::new(RwLock::new(None)),
+            #[cfg(test)]
+            test_base_url: None,
+            #[cfg(test)]
+            test_analytics_base_url: None,
         }
     }
 
     fn base(&self) -> String {
+        #[cfg(test)]
+        if let Some(ref url) = self.test_base_url {
+            return url.clone();
+        }
         config::api_base(&self.creds.host)
     }
 
     fn analytics_base(&self) -> String {
+        #[cfg(test)]
+        if let Some(ref url) = self.test_analytics_base_url {
+            return url.clone();
+        }
         config::analytics_base(&self.creds.host)
     }
 
@@ -247,6 +265,21 @@ where
     let data = fetch().await?;
     *cache.write().await = Some(data.clone());
     Ok(data)
+}
+
+#[cfg(test)]
+impl LsqClient {
+    /// Create a client that routes all HTTP calls to a local mock server.
+    ///
+    /// `server_uri` is the base URI of the mock server, e.g. `http://127.0.0.1:12345`.
+    /// Standard v2 API calls will go to `{server_uri}/v2/...`.
+    /// Analytics API calls will go to `{server_uri}/...` (no /v2 prefix).
+    pub(crate) fn new_for_testing(creds: Credentials, server_uri: &str) -> Self {
+        let mut client = Self::new(creds);
+        client.test_base_url = Some(format!("{}/v2", server_uri));
+        client.test_analytics_base_url = Some(server_uri.to_string());
+        client
+    }
 }
 
 #[cfg(test)]

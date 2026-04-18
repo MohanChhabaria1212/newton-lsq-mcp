@@ -26,6 +26,10 @@ base64 = "0.22"
 local = []
 staging = []
 
+[dev-dependencies]
+wiremock = "0.6"
+tempfile = "3"
+
 [profile.release]
 strip = true
 lto = true

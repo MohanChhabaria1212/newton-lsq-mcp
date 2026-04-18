@@ -34,7 +34,7 @@ lsq-mcp configure
 You'll be prompted for your email, Access Key, Secret Key, and the URL you open LeadSquared at in your browser. Find your API keys at:
 **LSQ Portal → My Account → Settings → API and Webhooks**
 
-The setup validates your credentials live, matches your account by email, shows your name/role, and asks for confirmation before saving. The API host is derived automatically from your browser URL — no need to look it up.
+The setup validates your credentials live, shows your name/role, and asks for confirmation before saving. The API host is derived automatically from your browser URL — no need to look it up.
 
 ### 3. Add to your MCP client
 
@@ -62,13 +62,13 @@ claude mcp add lsq -- lsq-mcp
 | `lsq-mcp configure` | Set up or update LSQ API credentials |
 | `lsq-mcp status` | Show current configuration |
 
-## Available tools (36 total)
+## Available tools (48 total)
 
 | Module | Tools |
 |---|---|
-| **Leads** | `get_lead_metadata`, `search_leads`, `get_lead_by_id`, `get_lead_by_email`, `get_lead_by_phone`, `get_lead_notes`, `get_lead_activities` |
-| **Opportunities** | `get_opportunity_types`, `get_opportunity_metadata`, `get_opportunity_by_id`, `get_opportunities_by_lead`, `search_opportunities` |
-| **Activities** | `get_activity_types`, `get_activities_by_lead` |
+| **Leads** | `get_lead_metadata`, `search_leads`, `quick_search_leads`, `get_lead_by_id`, `get_lead_by_email`, `get_lead_by_phone`, `get_leads_by_ids`, `get_lead_owner`, `get_lead_notes`, `get_lead_activities`, `get_recently_modified_leads` |
+| **Opportunities** | `get_opportunity_types`, `get_opportunity_metadata`, `get_opportunity_by_id`, `get_opportunities_by_lead`, `get_opportunities_by_lead_field`, `search_opportunities`, `is_opportunity_enabled`, `get_activities_of_opportunity` |
+| **Activities** | `get_activity_types`, `get_activity_details`, `get_activity_owner`, `get_activity_settings`, `get_activities_by_lead`, `get_recently_modified_activities` |
 | **Sales Activities** | `get_products`, `get_sales_activity_types`, `get_sales_activities_by_lead` |
 | **Tasks** | `get_task_types`, `get_tasks_by_lead`, `get_tasks_by_owner`, `get_appointments`, `get_todos` |
 | **Users** | `get_users`, `get_user_by_id`, `search_users`, `get_user_hierarchy`, `get_user_checkin_history`, `get_user_availability` |

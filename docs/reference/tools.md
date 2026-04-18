@@ -1,6 +1,6 @@
 # Tools Reference
 
-All 36 tools exposed by lsq-mcp. Each tool maps to a LeadSquared API endpoint.
+All 48 tools exposed by lsq-mcp. Each tool maps to a LeadSquared API endpoint.
 
 > **Tip:** Call `get_instructions` at the start of every session — it summarises this page and provides recommended call sequences.
 
@@ -34,36 +34,31 @@ Returns the complete field schema for leads on this account: field names, displa
 
 ### search_leads
 
-Searches leads using one or more filter conditions. Supports any field returned by `get_lead_metadata`, including custom fields. Returns paginated results.
+Searches leads using a single filter condition. Supports any field returned by `get_lead_metadata`, including custom fields. Returns paginated results.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `filters` | JSON array | No | Array of filter conditions (see below). If omitted, returns all leads. |
+| `lookup_name` | string | No | Field name to filter on (LSQ schema name, e.g. `"ProspectStage"`, `"EmailAddress"`, `"OwnerId"`). Omit to return all leads. |
+| `lookup_value` | string | No | Value to match against `lookup_name`. For dates use UTC format: `"YYYY-MM-DD HH:MM:SS"`. |
+| `operator` | string | No | SQL comparison operator: `=`, `LIKE`, `>`, `<`, `<=`, `>=`, `<>`. Default: `=`. Use `LIKE` for partial string match. |
 | `page` | integer | No | Page number (1-based). Default: 1 |
-| `page_size` | integer | No | Results per page. Default: 25, max: 100 |
+| `page_size` | integer | No | Results per page. Default: 25, max: 1000 |
+| `output_file` | string | No | Filename to write results to (e.g. `"leads.json"`). Always written to `~/.lsq-mcp/output/`. |
 
-**Filter format:**
-```json
-[
-  {"Attribute": "LeadStage", "Operator": "eq", "Value": "Contacted"},
-  {"Attribute": "CreatedOn", "Operator": "gte", "Value": "2024-01-01 00:00:00"}
-]
-```
-
-**Operators:** `eq`, `neq`, `gt`, `lt`, `gte`, `lte`, `contains`, `startswith`
+**Note:** `search_leads` supports one filter condition per call. To apply multiple filters, chain calls or post-filter in the client. For multi-condition searches use `get_leads_by_ids` with a pre-resolved ID list.
 
 **Response:**
 ```json
 {
   "results": [...],
-  "total_count": 450,
+  "count": 25,
   "page": 1,
   "page_size": 25,
   "has_more": true
 }
 ```
 
-When `has_more` is `true`, increment `page` to retrieve the next batch.
+`has_more` is `true` when the number of results equals `page_size` (LSQ does not return a total count for this endpoint). Increment `page` to retrieve the next batch.
 
 ---
 
@@ -119,6 +114,57 @@ Returns the complete activity history for a lead — every interaction logged in
 
 ---
 
+### quick_search_leads
+
+Full-text search across name, email, phone, company, city, and country. Faster than `search_leads` for lookup-by-identity queries. Returns up to 10 results.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `key` | string | Yes | Search term (matched against FirstName, LastName, EmailAddress, Phone, Mobile, Company, City, Country) |
+| `output_file` | string | No | Filename to write results to (e.g. `"results.json"`). Written to `~/.lsq-mcp/output/`. |
+
+---
+
+### get_leads_by_ids
+
+Bulk-fetch leads by a list of ProspectIDs in one call. Use when you already have a set of IDs from prior searches.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `lead_ids` | string array | Yes | List of ProspectID GUIDs to fetch (max 10,000) |
+| `columns` | string | No | Comma-separated field names to include. Omit for all fields. |
+| `page` | integer | No | Page number (1-based). Default: 1 |
+| `page_size` | integer | No | Results per page. Default: 25, max: 1000 |
+| `output_file` | string | No | Filename to write results to. Written to `~/.lsq-mcp/output/`. |
+
+---
+
+### get_lead_owner
+
+Returns the owner details of a lead, looked up by any unique lead field.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `lead_identifier` | string | Yes | Lead field name to search on (e.g. `"EmailAddress"`, `"LeadId"`, `"Phone"`) |
+| `value` | string | Yes | Value of that field |
+
+---
+
+### get_recently_modified_leads
+
+Returns leads modified within a date range. Useful for sync and audit workflows.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `from_date` | string | Yes | Start of modification window (UTC, `YYYY-MM-DD HH:MM:SS`) |
+| `to_date` | string | Yes | End of modification window (UTC, `YYYY-MM-DD HH:MM:SS`) |
+| `columns` | string | No | Comma-separated field names to return. Omit for key fields (ProspectID, name, email, ModifiedOn). |
+| `page` | integer | No | Page number (1-based). Default: 1 |
+| `page_size` | integer | No | Results per page. Default: 100, max: 1000 |
+| `output_file` | string | No | Filename to write results to. Written to `~/.lsq-mcp/output/`. |
+
+---
+
 ## Opportunities
 
 Opportunity tools require the Opportunities module to be enabled on your LSQ plan.
@@ -165,15 +211,55 @@ Returns all opportunities associated with a lead, across all opportunity types.
 
 ### search_opportunities
 
-Searches opportunities using filter conditions. Returns paginated results.
+Searches opportunities using filter conditions. Returns paginated results with `total_count` and `has_more`.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `filters` | JSON array | No | Filter conditions (same format as `search_leads`) |
-| `page` | integer | No | Page (default: 1) |
+| `opportunity_type_code` | integer | No | Event code of the opportunity type (from `get_opportunity_types`). Omit to search across all types. |
+| `advanced_search` | JSON object | No | Filter object: `{"GrpConOp":"And","Conditions":[{"Attribute":"FieldName","Operator":"eq","Value":"..."}]}`. Omit for no filter. |
+| `page` | integer | No | Page (1-based, default: 1) |
 | `page_size` | integer | No | Per page (default: 25, max: 100) |
+| `output_file` | string | No | Filename to write results to. Written to `~/.lsq-mcp/output/`. |
 
 **Tip:** Call `get_opportunity_metadata` first to discover valid field names for the opportunity type you want to filter on.
+
+---
+
+### is_opportunity_enabled
+
+Checks whether the Opportunity module is enabled for a given organisation ID. Useful before calling any opportunity tool to provide a clear error message.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `org_id` | string | Yes | Organisation ID from your LSQ account |
+
+---
+
+### get_opportunities_by_lead_field
+
+Searches opportunities by matching any unique lead field value (e.g. EmailAddress, Mobile). Returns paginated results.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `lookup_name` | string | Yes | Lead field name to match on (e.g. `"Mobile"`, `"EmailAddress"`) |
+| `lookup_value` | string | Yes | Value to match |
+| `operator` | string | No | SQL operator: `=`, `LIKE`, `>`, `<`, `<=`, `>=`, `<>`. Default: `=` |
+| `columns` | string | No | Comma-separated field names to include in response |
+| `page` | integer | No | Page (1-based, default: 1) |
+| `page_size` | integer | No | Per page (default: 25, max: 100) |
+| `output_file` | string | No | Filename to write results to. Written to `~/.lsq-mcp/output/`. |
+
+---
+
+### get_activities_of_opportunity
+
+Returns activities logged against a specific opportunity.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `opportunity_id` | string | Yes | Opportunity ID |
+
+> **Note:** This endpoint path is unconfirmed in LSQ's public documentation. If it returns a 404, contact LSQ support for the correct path.
 
 ---
 
@@ -197,7 +283,56 @@ Returns a paginated activity log for a lead. Includes all activity types mixed t
 |---|---|---|---|
 | `lead_id` | string | Yes | LeadSquared ProspectID |
 | `page` | integer | No | Page (default: 1) |
+| `page_size` | integer | No | Per page (default: 25). LSQ caps activities at 25 per page. |
+| `output_file` | string | No | Filename to write results to. Written to `~/.lsq-mcp/output/`. |
+
+---
+
+### get_activity_details
+
+Returns full details of a single activity by its activity ID.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `activity_id` | string | Yes | LeadSquared Activity ID (GUID) |
+
+---
+
+### get_activity_owner
+
+Returns the owner details of an activity.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `activity_id` | string | Yes | LeadSquared Activity ID (GUID) |
+
+> **Note:** This endpoint path is unconfirmed in LSQ's public documentation. If it returns a 404, contact LSQ support for the correct path.
+
+---
+
+### get_activity_settings
+
+Returns the custom field schema for all custom activity types on the account. Useful for understanding which fields are available when reading `get_activities_by_lead` results.
+
+**Parameters:** none
+
+> **Note:** This endpoint path is unconfirmed in LSQ's public documentation. If it returns a 404, use `get_activity_types` instead.
+
+---
+
+### get_recently_modified_activities
+
+Returns activities modified within a date range. Useful for sync and audit workflows.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `from_date` | string | Yes | Start of modification window (UTC, `YYYY-MM-DD HH:MM:SS`) |
+| `to_date` | string | Yes | End of modification window (UTC, `YYYY-MM-DD HH:MM:SS`) |
+| `page` | integer | No | Page (1-based, default: 1) |
 | `page_size` | integer | No | Per page (default: 25, max: 100) |
+| `output_file` | string | No | Filename to write results to. Written to `~/.lsq-mcp/output/`. |
+
+> **Note:** This endpoint path is unconfirmed in LSQ's public documentation. If it returns a 404, contact LSQ support for the correct path.
 
 ---
 
@@ -299,7 +434,9 @@ Returns to-do type tasks (follow-ups, reminders) for a user.
 
 Returns all users in the account — names, emails, roles, and team details. Returns up to 200 users. For accounts with more users, use `search_users` with filters.
 
-**Parameters:** none
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `output_file` | string | No | Filename to write results to (e.g. `"users.json"`). Written to `~/.lsq-mcp/output/`. |
 
 **When to use:** Use to resolve user names to user IDs, or to get a team roster for manager queries.
 

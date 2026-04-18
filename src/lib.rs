@@ -12,3 +12,6 @@ pub mod tools;
 /// All tests touching env vars must acquire this lock to avoid races.
 #[cfg(test)]
 pub(crate) static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
+mod integration_tests;

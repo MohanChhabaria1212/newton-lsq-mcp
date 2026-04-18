@@ -93,7 +93,7 @@ const AUTO_THRESHOLD_BYTES: usize = 100_000; // 100 KB
 /// - Only the final filename component is used; any directory prefix is stripped.
 ///   `/tmp/leads.json` → `~/.lsq-mcp/output/leads.json`
 /// - The resolved path is always inside the designated output directory.
-fn validated_output_path(requested: &str) -> Result<std::path::PathBuf, ErrorData> {
+pub(crate) fn validated_output_path(requested: &str) -> Result<std::path::PathBuf, ErrorData> {
     // Reject directory traversal immediately — before any other processing.
     if std::path::Path::new(requested)
         .components()

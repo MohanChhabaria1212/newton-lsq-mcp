@@ -1,0 +1,16 @@
+{
+  "name": "lsq-mcp",
+  "version": "0.0.0",
+  "description": "MCP server for LeadSquared CRM — read-only tool access via Claude and other MCP clients",
+  "license": "MIT",
+  "repository": "https://github.com/MohanChhabaria1212/lsq-mcp",
+  "bin": {
+    "lsq-mcp": "run.js"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ]
+}
